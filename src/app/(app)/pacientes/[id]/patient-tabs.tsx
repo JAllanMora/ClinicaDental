@@ -14,9 +14,10 @@ export function PatientTabs({ id, clinical }: { id: string; clinical: boolean })
     ...(clinical
       ? [
           { href: `${base}/historia`, label: "Historia clínica" },
-          { href: `${base}/odontograma`, label: "Odontograma", soon: true },
-          { href: `${base}/periodontograma`, label: "Periodontograma", soon: true },
-          { href: `${base}/evolucion`, label: "Notas de evolución", soon: true },
+          { href: `${base}/odontograma`, label: "Odontograma" },
+          { href: `${base}/periodontograma`, label: "Periodontograma" },
+          { href: `${base}/evolucion`, label: "Notas de evolución" },
+          { href: `${base}/consentimientos`, label: "Consentimientos" },
           { href: `${base}/imagenes`, label: "Imágenes", soon: true },
         ]
       : []),
@@ -35,7 +36,7 @@ export function PatientTabs({ id, clinical }: { id: string; clinical: boolean })
             href={t.href}
             className={cx(
               "-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition",
-              pathname === t.href
+              (t.href === base ? pathname === base : pathname.startsWith(t.href))
                 ? "border-magenta-500 text-magenta-600"
                 : "border-transparent text-brand-700 hover:border-brand-300 hover:text-brand-900",
             )}

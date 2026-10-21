@@ -9,7 +9,7 @@ y desplegado en **Vercel**.
 | Fase | Contenido | Estado |
 | --- | --- | --- |
 | 1 | Base: marca, login, roles con RLS, bitácora, pacientes, historia clínica, configuración | ✅ |
-| 2 | Expediente: odontograma, periodontograma, notas de evolución, consentimiento con firma | ⏳ |
+| 2 | Expediente: odontograma, periodontograma, notas de evolución, consentimiento con firma | ✅ |
 | 3 | Imagenología: radiografías, fotos, DICOM, STL | ⏳ |
 | 4 | Agenda multi-doctor/sillón, tipos de cita, lista de espera | ⏳ |
 | 5 | Recordatorios por WhatsApp y correo | ⏳ |

@@ -5,6 +5,8 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 
 export type AppRole = "admin" | "dentist" | "reception";
 export type Sex = "F" | "M" | "X";
+export type FindingLayer = "previo" | "patologia" | "propuesto" | "realizado";
+export type ToothSurface = "M" | "O" | "D" | "V" | "L";
 
 type Timestamps = { created_at: string; updated_at: string };
 
@@ -100,7 +102,92 @@ export type AuditLog = {
   changed: string[] | null;
 };
 
+export type DentalFinding = {
+  id: string;
+  patient_id: string;
+  tooth: number;
+  surface: ToothSurface | null;
+  condition: string;
+  layer: FindingLayer;
+  notes: string | null;
+  recorded_by: string | null;
+  recorded_at: string;
+  completed_at: string | null;
+  completed_by: string | null;
+  voided_at: string | null;
+  voided_by: string | null;
+  void_reason: string | null;
+  updated_at: string;
+};
+
+export type PerioSite = { pd?: number | null; rec?: number | null; bop?: boolean; sup?: boolean };
+export type PerioTooth = {
+  mobility?: number | null;
+  furcation?: number | null;
+  missing?: boolean;
+  implant?: boolean;
+  sites?: Partial<Record<"MV" | "V" | "DV" | "ML" | "L" | "DL", PerioSite>>;
+};
+export type PerioData = Record<string, PerioTooth>;
+
+export type PeriodontalExam = {
+  id: string;
+  patient_id: string;
+  exam_date: string;
+  examiner_id: string | null;
+  dentition: "permanente" | "temporal";
+  data: PerioData;
+  notes: string | null;
+} & Timestamps;
+
+export type ClinicalNote = {
+  id: string;
+  patient_id: string;
+  note_date: string;
+  teeth: number[];
+  procedure: string;
+  materials: string | null;
+  anesthesia: string | null;
+  description: string | null;
+  next_steps: string | null;
+  dentist_id: string;
+  amends_note_id: string | null;
+  created_at: string;
+};
+
+export type ConsentTemplate = {
+  id: string;
+  title: string;
+  body: string;
+  active: boolean;
+} & Timestamps;
+
+export type Consent = {
+  id: string;
+  patient_id: string;
+  template_id: string | null;
+  title: string;
+  body: string;
+  signer_name: string;
+  signer_relation: string | null;
+  signature: string;
+  dentist_id: string | null;
+  dentist_signature: string | null;
+  signed_at: string;
+  revoked_at: string | null;
+  revoked_reason: string | null;
+  user_agent: string | null;
+};
+
 type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
+
+type PatientFk<T extends string> = {
+  foreignKeyName: `${T}_patient_id_fkey`;
+  columns: ["patient_id"];
+  isOneToOne: false;
+  referencedRelation: "patients";
+  referencedColumns: ["id"];
+};
 
 type TableDef<Row, Insert, Rels extends unknown[] = []> = {
   Row: Row;
@@ -174,14 +261,42 @@ export type Database = {
         [{ foreignKeyName: "medical_histories_patient_id_fkey"; columns: ["patient_id"]; isOneToOne: true; referencedRelation: "patients"; referencedColumns: ["id"] }]
       >;
       audit_log: TableDef<AuditLog, never>;
+      dental_findings: TableDef<
+        DentalFinding,
+        Partial<DentalFinding> & Pick<DentalFinding, "patient_id" | "tooth" | "condition" | "layer">,
+        [PatientFk<"dental_findings">]
+      >;
+      periodontal_exams: TableDef<
+        PeriodontalExam,
+        Partial<PeriodontalExam> & Pick<PeriodontalExam, "patient_id">,
+        [PatientFk<"periodontal_exams">]
+      >;
+      clinical_notes: TableDef<
+        ClinicalNote,
+        Partial<ClinicalNote> & Pick<ClinicalNote, "patient_id" | "procedure">,
+        [
+          PatientFk<"clinical_notes">,
+          { foreignKeyName: "clinical_notes_dentist_id_fkey"; columns: ["dentist_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      >;
+      consent_templates: TableDef<ConsentTemplate, Partial<ConsentTemplate> & Pick<ConsentTemplate, "title" | "body">>;
+      consents: TableDef<
+        Consent,
+        Partial<Consent> & Pick<Consent, "patient_id" | "title" | "body" | "signer_name" | "signature">,
+        [
+          PatientFk<"consents">,
+          { foreignKeyName: "consents_dentist_id_fkey"; columns: ["dentist_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      >;
     };
     Views: { [_ in never]: never };
     Functions: {
       current_app_role: { Args: Record<string, never>; Returns: AppRole };
       is_admin: { Args: Record<string, never>; Returns: boolean };
       can_access_clinical: { Args: { p_patient_id: string }; Returns: boolean };
+      can_write_clinical: { Args: { p_patient_id: string }; Returns: boolean };
     };
-    Enums: { app_role: AppRole; sex: Sex };
+    Enums: { app_role: AppRole; sex: Sex; finding_layer: FindingLayer; tooth_surface: ToothSurface };
     CompositeTypes: { [_ in never]: never };
   };
 };

@@ -1,24 +1,7 @@
--- Pruebas de RLS. Se ejecutan con scripts/test-db.sh contra un Postgres local
--- con supabase_stub.sql + migraciones aplicadas. Cualquier fallo aborta.
-\set ON_ERROR_STOP 1
-
-create or replace function pg_temp.login(p_email text) returns void language plpgsql as $$
-begin
-  perform set_config('request.jwt.claim.sub', (select id::text from auth.users where email = p_email), false);
-  execute 'set role authenticated';
-end $$;
-
-create or replace function pg_temp.logout() returns void language plpgsql as $$
-begin
-  execute 'reset role';
-  perform set_config('request.jwt.claim.sub', '', false);
-end $$;
-
-create or replace function pg_temp.assert(cond boolean, msg text) returns void language plpgsql as $$
-begin
-  if not coalesce(cond, false) then raise exception 'FALLA: %', msg; end if;
-  raise notice 'ok - %', msg;
-end $$;
+-- Fase 1: roles, pacientes, anamnesis y bitácora.
+-- Se ejecutan con scripts/test-db.sh contra un Postgres local con
+-- supabase_stub.sql + migraciones aplicadas. Cualquier fallo aborta.
+\ir helpers.sql
 
 -- Usuarios: el primero es admin automáticamente
 insert into auth.users (email) values ('admin@clinica.mx');

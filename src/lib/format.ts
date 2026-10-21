@@ -22,18 +22,44 @@ export function ageFrom(birthDate: string | null, today = new Date()) {
 }
 
 const TZ = "America/Mexico_City";
+const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+// Formato manual (sólo partes numéricas de Intl): el texto de Intl varía entre
+// Node y el navegador ("p.m." vs "p. m.") y rompe la hidratación.
+function parts(date: Date) {
+  const out: Record<string, number> = {};
+  for (const p of new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(date)) {
+    if (p.type !== "literal") out[p.type] = Number(p.value);
+  }
+  return out;
+}
 
 export function formatDate(value: string | null) {
   if (!value) return "—";
-  // Fechas puras (YYYY-MM-DD) se muestran tal cual, sin desfase de zona horaria.
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T12:00:00`) : new Date(value);
-  return new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeZone: TZ }).format(date);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    // Fechas puras (YYYY-MM-DD) se muestran tal cual, sin desfase de zona horaria.
+    const [y, m, d] = value.split("-").map(Number);
+    return `${d} ${MONTHS[m - 1]} ${y}`;
+  }
+  const p = parts(new Date(value));
+  return `${p.day} ${MONTHS[p.month - 1]} ${p.year}`;
+}
+
+export function formatTime(value: string | Date) {
+  const p = parts(typeof value === "string" ? new Date(value) : value);
+  return `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
 }
 
 export function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short", timeZone: TZ }).format(
-    new Date(value),
-  );
+  return `${formatDate(value)}, ${formatTime(value)}`;
 }
 
 export function recordNumber(n: number) {

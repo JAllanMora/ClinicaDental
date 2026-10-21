@@ -10,5 +10,8 @@ PSQL=(psql -v ON_ERROR_STOP=1 -q)
 for f in supabase/migrations/*.sql; do
   "${PSQL[@]}" -d "$DB" -f "$f"
 done
-"${PSQL[@]}" -d "$DB" -f supabase/tests/rls_test.sql >/dev/null
+for t in supabase/tests/[0-9]*_test.sql; do
+  echo "== $t"
+  "${PSQL[@]}" -d "$DB" -f "$t" >/dev/null
+done
 echo "Pruebas de base de datos: OK"
