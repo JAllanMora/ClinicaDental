@@ -47,6 +47,7 @@ export async function updateStaff(id: string, _prev: ActionState, formData: Form
       professional_id: z.string().trim(),
       color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
       active: z.boolean(),
+      commission_pct: z.coerce.number().min(0).max(100),
     })
     .safeParse({
       full_name: formData.get("full_name"),
@@ -55,6 +56,7 @@ export async function updateStaff(id: string, _prev: ActionState, formData: Form
       professional_id: formData.get("professional_id") ?? "",
       color: formData.get("color"),
       active: formData.get("active") === "on",
+      commission_pct: formData.get("commission_pct") || 0,
     });
   if (!parsed.success) return { error: "Datos inválidos." };
   if (id === me.id && (parsed.data.role !== "admin" || !parsed.data.active)) {
@@ -132,4 +134,31 @@ export async function saveAppointmentType(id: string | null, _prev: ActionState,
   if (error) return { error: error.code === "23505" ? "Ya existe un tipo de cita con ese nombre." : "No se pudo guardar." };
   revalidatePath("/configuracion");
   return { ok: id ? "Guardado." : "Tipo de cita agregado." };
+}
+
+const treatmentSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  category: z.string().trim().min(2).max(60),
+  price: z.coerce.number().min(0).max(1_000_000),
+  commission_pct: z.union([z.literal("").transform(() => null), z.coerce.number().min(0).max(100)]),
+  active: z.boolean(),
+});
+
+export async function saveTreatment(id: string | null, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireProfile(["admin"]);
+  const parsed = treatmentSchema.safeParse({
+    name: formData.get("name"),
+    category: formData.get("category"),
+    price: formData.get("price"),
+    commission_pct: String(formData.get("commission_pct") ?? ""),
+    active: id ? formData.get("active") === "on" : true,
+  });
+  if (!parsed.success) return { error: "Revisa nombre, categoría y precio." };
+  const supabase = await createClient();
+  const { error } = id
+    ? await supabase.from("treatments").update(parsed.data).eq("id", id)
+    : await supabase.from("treatments").insert(parsed.data);
+  if (error) return { error: error.code === "23505" ? "Ya existe un tratamiento con ese nombre." : "No se pudo guardar." };
+  revalidatePath("/configuracion");
+  return { ok: id ? "Guardado." : "Tratamiento agregado." };
 }

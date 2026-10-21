@@ -13,7 +13,7 @@ y desplegado en **Vercel**.
 | 3 | Imagenología: radiografías, fotos, DICOM, STL | ✅ |
 | 4 | Agenda multi-doctor/sillón, tipos de cita, lista de espera | ✅ |
 | 5 | Recordatorios por WhatsApp, SMS y correo; confirmación por enlace | ✅ |
-| 6 | Presupuestos, abonos, saldos, corte de caja, comisiones (sin CFDI por ahora) | ⏳ |
+| 6 | Presupuestos, abonos, saldos, corte de caja, comisiones (sin CFDI por ahora) | ✅ |
 | 7 | Inventario y laboratorio | ⏳ |
 | 8 | Reportes, métricas y modo tablet para pacientes | ⏳ |
 
@@ -33,6 +33,10 @@ La seguridad vive en la base de datos (Row Level Security), no sólo en la inter
 - **El expediente no se borra** (NOM-004-SSA3): los pacientes se marcan como inactivos.
 - **Usuarios nuevos quedan inactivos** hasta que un administrador los invita/activa. El primer usuario
   del sistema se convierte en administrador.
+- **El dinero no se borra**: pagos y egresos se cancelan con motivo; un día con **corte de caja** cerrado ya no
+  admite cobros, egresos ni cancelaciones. Los precios de tratamientos ya realizados no se pueden cambiar.
+- Recepción cobra y hace el corte; el odontólogo marca tratamientos realizados (base de su comisión) y ve
+  los pagos de sus pacientes, pero no la caja.
 - Cifrado en tránsito (HTTPS en Vercel/Supabase) y en reposo (Supabase cifra la base y el storage con AES-256).
 
 ## Puesta en marcha

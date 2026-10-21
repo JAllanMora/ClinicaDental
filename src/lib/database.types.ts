@@ -48,6 +48,7 @@ export type Profile = {
   color: string;
   branch_id: string | null;
   active: boolean;
+  commission_pct: number;
 } & Timestamps;
 
 export type Patient = {
@@ -320,6 +321,95 @@ export type AppointmentByToken = {
   branch_phone: string | null;
 };
 
+export type PlanStatus = "borrador" | "presentado" | "aceptado" | "rechazado" | "terminado" | "cancelado";
+export type PlanItemStatus = "pendiente" | "realizado" | "cancelado";
+export type PaymentMethod = "efectivo" | "tarjeta_debito" | "tarjeta_credito" | "transferencia" | "otro";
+
+export type Treatment = {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  commission_pct: number | null;
+  active: boolean;
+} & Timestamps;
+
+export type TreatmentPlan = {
+  id: string;
+  folio: number;
+  patient_id: string;
+  dentist_id: string | null;
+  title: string;
+  status: PlanStatus;
+  valid_until: string | null;
+  notes: string | null;
+  accepted_at: string | null;
+  created_by: string | null;
+} & Timestamps;
+
+export type TreatmentPlanItem = {
+  id: string;
+  plan_id: string;
+  treatment_id: string | null;
+  description: string;
+  tooth: number | null;
+  phase: number;
+  quantity: number;
+  unit_price: number;
+  discount_pct: number;
+  line_total: number;
+  status: PlanItemStatus;
+  completed_at: string | null;
+  completed_by: string | null;
+  sort: number;
+} & Timestamps;
+
+export type Payment = {
+  id: string;
+  folio: number;
+  patient_id: string;
+  plan_id: string | null;
+  branch_id: string;
+  amount: number;
+  method: PaymentMethod;
+  reference: string | null;
+  notes: string | null;
+  received_by: string | null;
+  received_at: string;
+  voided: boolean;
+  void_reason: string | null;
+  voided_by: string | null;
+  voided_at: string | null;
+};
+
+export type CashExpense = {
+  id: string;
+  branch_id: string;
+  amount: number;
+  concept: string;
+  method: PaymentMethod;
+  created_by: string | null;
+  spent_at: string;
+  voided: boolean;
+  void_reason: string | null;
+};
+
+export type CashClosure = {
+  id: string;
+  branch_id: string;
+  day: string;
+  opening_cash: number;
+  totals: Partial<Record<PaymentMethod, number>> & { egresos?: number; cancelados?: number };
+  expected_cash: number;
+  counted_cash: number;
+  difference: number;
+  notes: string | null;
+  closed_by: string | null;
+  closed_at: string;
+};
+
+export type PatientBalance = { patient_id: string; charged: number; paid: number; balance: number; pending_treatment: number };
+
 type Fk<T extends string, C extends string, R extends string> = {
   foreignKeyName: `${T}_${C}_fkey`;
   columns: [C];
@@ -357,7 +447,7 @@ export type Database = {
         Profile,
         Optional<
           Profile,
-          "full_name" | "email" | "role" | "specialty" | "professional_id" | "phone" | "color" | "branch_id" | "active" | "created_at" | "updated_at"
+          "full_name" | "email" | "role" | "specialty" | "professional_id" | "phone" | "color" | "branch_id" | "active" | "created_at" | "updated_at" | "commission_pct"
         >,
         [{ foreignKeyName: "profiles_branch_id_fkey"; columns: ["branch_id"]; isOneToOne: false; referencedRelation: "branches"; referencedColumns: ["id"] }]
       >;
@@ -469,6 +559,41 @@ export type Database = {
         Partial<Notification> & Pick<Notification, "patient_id" | "channel" | "recipient" | "body">,
         [PatientFk<"notifications">, Fk<"notifications", "appointment_id", "appointments">, Fk<"notifications", "sent_by", "profiles">]
       >;
+      treatments: TableDef<Treatment, Partial<Treatment> & Pick<Treatment, "name" | "price">>;
+      treatment_plans: TableDef<
+        TreatmentPlan,
+        Partial<Omit<TreatmentPlan, "folio">> & Pick<TreatmentPlan, "patient_id">,
+        [PatientFk<"treatment_plans">, Fk<"treatment_plans", "dentist_id", "profiles">, Fk<"treatment_plans", "created_by", "profiles">]
+      >;
+      treatment_plan_items: TableDef<
+        TreatmentPlanItem,
+        Partial<Omit<TreatmentPlanItem, "line_total">> & Pick<TreatmentPlanItem, "plan_id" | "description" | "unit_price">,
+        [
+          Fk<"treatment_plan_items", "plan_id", "treatment_plans">,
+          Fk<"treatment_plan_items", "treatment_id", "treatments">,
+          Fk<"treatment_plan_items", "completed_by", "profiles">,
+        ]
+      >;
+      payments: TableDef<
+        Payment,
+        Partial<Omit<Payment, "folio">> & Pick<Payment, "patient_id" | "branch_id" | "amount" | "method">,
+        [
+          PatientFk<"payments">,
+          Fk<"payments", "plan_id", "treatment_plans">,
+          Fk<"payments", "branch_id", "branches">,
+          Fk<"payments", "received_by", "profiles">,
+        ]
+      >;
+      cash_expenses: TableDef<
+        CashExpense,
+        Partial<CashExpense> & Pick<CashExpense, "branch_id" | "amount" | "concept">,
+        [Fk<"cash_expenses", "created_by", "profiles">]
+      >;
+      cash_closures: TableDef<
+        CashClosure,
+        Partial<Omit<CashClosure, "difference">> & Pick<CashClosure, "branch_id" | "day" | "totals" | "expected_cash" | "counted_cash">,
+        [Fk<"cash_closures", "closed_by", "profiles">, Fk<"cash_closures", "branch_id", "branches">]
+      >;
       consent_templates: TableDef<ConsentTemplate, Partial<ConsentTemplate> & Pick<ConsentTemplate, "title" | "body">>;
       consents: TableDef<
         Consent,
@@ -479,7 +604,9 @@ export type Database = {
         ]
       >;
     };
-    Views: { [_ in never]: never };
+    Views: {
+      patient_balances: { Row: PatientBalance; Relationships: [] };
+    };
     Functions: {
       current_app_role: { Args: Record<string, never>; Returns: AppRole };
       is_admin: { Args: Record<string, never>; Returns: boolean };
@@ -488,7 +615,7 @@ export type Database = {
       appointment_by_token: { Args: { p_token: string }; Returns: AppointmentByToken[] };
       respond_appointment: { Args: { p_token: string; p_response: "confirmada" | "cambio" }; Returns: boolean };
     };
-    Enums: { app_role: AppRole; sex: Sex; finding_layer: FindingLayer; tooth_surface: ToothSurface; file_kind: FileKind; appointment_status: AppointmentStatus; contact_channel: ContactChannel; notification_status: NotificationStatus };
+    Enums: { app_role: AppRole; sex: Sex; finding_layer: FindingLayer; tooth_surface: ToothSurface; file_kind: FileKind; appointment_status: AppointmentStatus; contact_channel: ContactChannel; notification_status: NotificationStatus; plan_status: PlanStatus; plan_item_status: PlanItemStatus; payment_method: PaymentMethod };
     CompositeTypes: { [_ in never]: never };
   };
 };

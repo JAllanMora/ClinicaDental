@@ -1,9 +1,9 @@
 "use client";
 
 import { useActionState, useTransition } from "react";
-import type { AppointmentType, Profile } from "@/lib/database.types";
+import type { AppointmentType, Profile, Treatment } from "@/lib/database.types";
 import { Alert, Button, Field } from "@/components/ui";
-import { addBranch, addChair, inviteUser, saveAppointmentType, toggleChair, updateStaff, type ActionState } from "./actions";
+import { addBranch, addChair, inviteUser, saveAppointmentType, saveTreatment, toggleChair, updateStaff, type ActionState } from "./actions";
 
 const ROLES = [
   { value: "reception", label: "Recepción" },
@@ -56,7 +56,7 @@ export function StaffRow({ person, isMe }: { person: Profile; isMe: boolean }) {
   return (
     // Remontar al guardar: React no restaura los <select> al reiniciar el formulario.
     <form key={person.updated_at} action={action} className="space-y-3 py-4">
-      <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr_1fr_auto_auto] md:items-end">
+      <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr_1fr_5rem_auto_auto] md:items-end">
         <Field label={person.email ?? "Nombre"}>
           <input name="full_name" defaultValue={person.full_name} required className="field" />
         </Field>
@@ -75,6 +75,9 @@ export function StaffRow({ person, isMe }: { person: Profile; isMe: boolean }) {
         </Field>
         <Field label="Cédula profesional">
           <input name="professional_id" defaultValue={person.professional_id ?? ""} className="field" />
+        </Field>
+        <Field label="Comisión %">
+          <input name="commission_pct" type="number" min={0} max={100} step={0.5} defaultValue={person.commission_pct} className="field" />
         </Field>
         <div className="flex items-end gap-3 pb-1">
           <label className="flex flex-col items-center text-xs text-brand-800">
@@ -177,6 +180,40 @@ export function AppointmentTypeRow({ type }: { type?: AppointmentType }) {
         {state.error && <span className="text-sm text-red-700">{state.error}</span>}
         {state.ok && <span className="text-sm text-emerald-700">{state.ok}</span>}
       </div>
+    </form>
+  );
+}
+
+export function TreatmentRow({ treatment, categories }: { treatment?: Treatment; categories: string[] }) {
+  const [state, action, pending] = useActionState<ActionState, FormData>(saveTreatment.bind(null, treatment?.id ?? null), {});
+  const t = treatment;
+  return (
+    <form key={t?.updated_at} action={action} className="grid items-center gap-2 py-2 sm:grid-cols-[1fr_10rem_7rem_6rem_5rem_auto]">
+      <input name="name" required defaultValue={t?.name} placeholder={t ? undefined : "Nuevo tratamiento"} aria-label="Tratamiento" className="field" />
+      <input name="category" required defaultValue={t?.category ?? ""} list="treatment-categories" placeholder="Categoría" aria-label="Categoría" className="field" />
+      <input name="price" type="number" min={0} step="0.01" required defaultValue={t?.price} placeholder="Precio" aria-label="Precio" className="field" />
+      <input name="commission_pct" type="number" min={0} max={100} step={0.5} defaultValue={t?.commission_pct ?? ""} placeholder="Com. %" title="Comisión especial (vacío = la del odontólogo)" aria-label="Comisión %" className="field" />
+      {t ? (
+        <label className="flex items-center gap-1.5 text-sm text-brand-700">
+          <input type="checkbox" name="active" defaultChecked={t.active} /> Activo
+        </label>
+      ) : (
+        <span />
+      )}
+      <div className="flex items-center gap-2">
+        <Button type="submit" variant={t ? "ghost" : "secondary"} disabled={pending}>
+          {t ? "Guardar" : "+ Agregar"}
+        </Button>
+        {state.error && <span className="text-sm text-red-700">{state.error}</span>}
+        {state.ok && <span className="text-sm text-emerald-700">{state.ok}</span>}
+      </div>
+      {!t && (
+        <datalist id="treatment-categories">
+          {categories.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
+      )}
     </form>
   );
 }

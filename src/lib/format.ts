@@ -74,3 +74,11 @@ export function normalizeSearch(text: string) {
     .replace(/[%_,()\\]/g, " ")
     .trim();
 }
+
+/** $1,234.50 — formato manual para que servidor y navegador coincidan. */
+export function money(value: number | string | null | undefined) {
+  const n = Number(value ?? 0);
+  const sign = n < 0 ? "-" : "";
+  const [int, dec] = Math.abs(n).toFixed(2).split(".");
+  return `${sign}$${int.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${dec}`;
+}

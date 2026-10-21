@@ -21,10 +21,11 @@ export function PatientTabs({ id, clinical }: { id: string; clinical: boolean })
           { href: `${base}/imagenes`, label: "Imágenes" },
         ]
       : []),
+    { href: `${base}/cuenta`, label: "Cuenta" },
   ];
 
   return (
-    <nav className="-mx-1 mb-6 flex gap-1 overflow-x-auto border-b border-brand-100 px-1">
+    <nav className="-mx-1 mb-6 flex print:hidden gap-1 overflow-x-auto border-b border-brand-100 px-1">
       {tabs.map((t) =>
         t.soon ? (
           <span key={t.href} className="whitespace-nowrap px-3 py-2.5 text-sm text-brand-300" title="Disponible en la siguiente fase">

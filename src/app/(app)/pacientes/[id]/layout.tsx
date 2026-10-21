@@ -26,7 +26,7 @@ export default async function PatientLayout({ params, children }: LayoutProps<"/
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4 print:hidden">
         <div className="flex items-center gap-4">
           <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-magenta-500 text-lg font-semibold text-white shadow-md shadow-brand-500/30">
             {initials(name)}
@@ -47,7 +47,7 @@ export default async function PatientLayout({ params, children }: LayoutProps<"/
       </div>
 
       {clinical && alerts.length > 0 && (
-        <div className="mb-6 flex flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+        <div className="mb-6 flex flex-wrap items-center gap-2 rounded-xl border border-red-200 print:hidden bg-red-50 px-4 py-3">
           <span className="text-sm font-semibold text-red-800">⚠ Alertas médicas:</span>
           {alerts.map((a) => (
             <Badge key={a} tone="red">
@@ -57,7 +57,7 @@ export default async function PatientLayout({ params, children }: LayoutProps<"/
         </div>
       )}
       {clinical && !history && (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="mb-6 rounded-xl print:hidden border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Este paciente aún no tiene historia clínica. Captúrala antes de iniciar cualquier tratamiento.
         </div>
       )}
