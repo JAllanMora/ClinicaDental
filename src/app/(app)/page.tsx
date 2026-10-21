@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { Alert, ButtonLink, Card } from "@/components/ui";
 import { ROLE_LABELS, requireProfile } from "@/lib/auth";
-import { STATUS, dayRange, minutesToLabel, clinicParts, todayStr } from "@/lib/agenda";
+import { STATUS, addDays, dayRange, minutesToLabel, clinicParts, todayStr } from "@/lib/agenda";
+import { LAB_PENDING } from "@/lib/lab";
+import { stockRows } from "./inventario/data";
 import { fullName, recordNumber } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 
@@ -43,6 +45,24 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   ]);
   const pendingToday = (today ?? []).filter((a) => a.status !== "completada").length;
 
+  // Pendientes que conviene atender hoy.
+  const [stock, { count: lateLabs }, { count: changeRequests }] = await Promise.all([
+    stockRows(supabase),
+    supabase.from("lab_orders").select("id", { count: "exact", head: true }).in("status", LAB_PENDING).lt("due_date", todayStr()),
+    supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_response", "cambio")
+      .eq("status", "programada")
+      .gte("starts_at", todayStart)
+      .lt("starts_at", dayRange(addDays(todayStr(), 14))[0]),
+  ]);
+  const tasks = [
+    { n: changeRequests ?? 0, label: "pacientes pidieron cambiar su cita", href: "/agenda/recordatorios" },
+    { n: lateLabs ?? 0, label: "trabajos de laboratorio atrasados", href: "/laboratorio" },
+    { n: stock.filter((r) => r.low || r.expiring).length, label: "artículos con alerta de inventario", href: "/inventario?vista=alertas" },
+  ].filter((t) => t.n > 0);
+
   const firstName = profile.full_name.split(" ")[0];
 
   return (
@@ -70,6 +90,17 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           </ButtonLink>
         </div>
       </section>
+
+      {tasks.length > 0 && (
+        <div className="mb-6 flex flex-wrap gap-3">
+          {tasks.map((t) => (
+            <Link key={t.href} href={t.href} className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 hover:bg-amber-100">
+              <span className="grid h-6 min-w-6 place-items-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white">{t.n}</span>
+              {t.label}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="grid gap-6 md:grid-cols-3">
         <Card>

@@ -19,7 +19,7 @@ const consentSchema = z.object({
   dentist_signature: png.nullable(),
 });
 
-export async function signConsent(patientId: string, input: z.input<typeof consentSchema>) {
+export async function signConsent(patientId: string, input: z.input<typeof consentSchema>, from?: "tablet") {
   const profile = await requireProfile();
   if (!canSeeClinical(profile.role)) return { error: "Sin permiso." };
   const parsed = consentSchema.safeParse(input);
@@ -40,7 +40,7 @@ export async function signConsent(patientId: string, input: z.input<typeof conse
   if (error || !data) return { error: "No se pudo guardar el consentimiento." };
 
   revalidatePath(`/pacientes/${patientId}/consentimientos`);
-  redirect(`/pacientes/${patientId}/consentimientos/${data.id}`);
+  redirect(from === "tablet" ? "/tablet/listo" : `/pacientes/${patientId}/consentimientos/${data.id}`);
 }
 
 export async function revokeConsent(patientId: string, id: string, reason: string) {

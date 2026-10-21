@@ -476,6 +476,31 @@ export type LabOrder = {
 
 export type LabOrderEvent = { id: number; order_id: string; status: LabStatus; note: string | null; created_by: string | null; created_at: string };
 
+export type QuestionnaireAnswers = {
+  chief_complaint?: string;
+  conditions?: Record<string, boolean>;
+  other_conditions?: string;
+  allergies?: string[];
+  medications?: string;
+  surgeries?: string;
+  pregnant?: boolean | null;
+  breastfeeding?: boolean | null;
+  last_dental_visit?: string;
+  dental_history?: string;
+};
+
+export type PatientQuestionnaire = {
+  id: string;
+  patient_id: string;
+  answers: QuestionnaireAnswers;
+  signer_name: string;
+  signature: string;
+  submitted_by: string | null;
+  submitted_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+};
+
 type Fk<T extends string, C extends string, R extends string> = {
   foreignKeyName: `${T}_${C}_fkey`;
   columns: [C];
@@ -692,6 +717,11 @@ export type Database = {
         LabOrderEvent,
         Partial<LabOrderEvent> & Pick<LabOrderEvent, "order_id" | "status">,
         [Fk<"lab_order_events", "order_id", "lab_orders">, Fk<"lab_order_events", "created_by", "profiles">]
+      >;
+      patient_questionnaires: TableDef<
+        PatientQuestionnaire,
+        Partial<PatientQuestionnaire> & Pick<PatientQuestionnaire, "patient_id" | "answers" | "signer_name" | "signature">,
+        [PatientFk<"patient_questionnaires">, Fk<"patient_questionnaires", "submitted_by", "profiles">]
       >;
       consent_templates: TableDef<ConsentTemplate, Partial<ConsentTemplate> & Pick<ConsentTemplate, "title" | "body">>;
       consents: TableDef<

@@ -15,7 +15,20 @@ y desplegado en **Vercel**.
 | 5 | Recordatorios por WhatsApp, SMS y correo; confirmación por enlace | ✅ |
 | 6 | Presupuestos, abonos, saldos, corte de caja, comisiones (sin CFDI por ahora) | ✅ |
 | 7 | Inventario por lotes con caducidades y alertas; órdenes de laboratorio | ✅ |
-| 8 | Reportes, métricas y modo tablet para pacientes | ⏳ |
+| 8 | Reportes, métricas y modo tablet para pacientes | ✅ |
+
+## Modo tablet
+
+En *Modo tablet* (menú lateral) el personal elige al paciente del día y le entrega la tablet:
+
+- **Cuestionario de salud**: enfermedades, alergias, medicamentos y firma. Queda aparte de la historia
+  clínica hasta que el odontólogo lo revisa y lo pasa a la historia (lo ve en *Historia clínica*).
+  Recepción puede entregarlo, pero no puede leer las respuestas.
+- **Consentimiento informado**: el odontólogo elige el formato y anota el procedimiento; el paciente lo lee
+  y firma con el dedo.
+
+Tip: en la tablet agrega el sitio a la pantalla de inicio y usa el modo de acceso guiado (iPad) o fijar
+pantalla (Android) para que el paciente no salga de la página.
 
 ## Roles y seguridad
 
