@@ -212,6 +212,74 @@ export type PatientFile = {
   void_reason: string | null;
 };
 
+export type AppointmentStatus =
+  | "programada"
+  | "confirmada"
+  | "en_sala"
+  | "en_atencion"
+  | "completada"
+  | "cancelada"
+  | "no_asistio";
+
+export type AppointmentType = {
+  id: string;
+  name: string;
+  duration_minutes: number;
+  color: string;
+  active: boolean;
+} & Timestamps;
+
+export type Appointment = {
+  id: string;
+  patient_id: string;
+  dentist_id: string;
+  chair_id: string;
+  type_id: string | null;
+  starts_at: string;
+  ends_at: string;
+  status: AppointmentStatus;
+  reason: string | null;
+  notes: string | null;
+  cancel_reason: string | null;
+  confirmed_at: string | null;
+  arrived_at: string | null;
+  created_by: string | null;
+} & Timestamps;
+
+export type ScheduleBlock = {
+  id: string;
+  dentist_id: string | null;
+  chair_id: string | null;
+  starts_at: string;
+  ends_at: string;
+  reason: string;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type WaitlistEntry = {
+  id: string;
+  patient_id: string;
+  type_id: string | null;
+  dentist_id: string | null;
+  preferred_time: "manana" | "tarde" | "cualquiera";
+  preferred_days: number[];
+  short_notice: boolean;
+  priority: number;
+  notes: string | null;
+  status: "activa" | "agendada" | "descartada";
+  appointment_id: string | null;
+  created_by: string | null;
+} & Timestamps;
+
+type Fk<T extends string, C extends string, R extends string> = {
+  foreignKeyName: `${T}_${C}_fkey`;
+  columns: [C];
+  isOneToOne: false;
+  referencedRelation: R;
+  referencedColumns: ["id"];
+};
+
 type PatientFk<T extends string> = {
   foreignKeyName: `${T}_patient_id_fkey`;
   columns: ["patient_id"];
@@ -318,6 +386,34 @@ export type Database = {
           { foreignKeyName: "patient_files_uploaded_by_fkey"; columns: ["uploaded_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
         ]
       >;
+      appointment_types: TableDef<
+        AppointmentType,
+        Partial<AppointmentType> & Pick<AppointmentType, "name" | "duration_minutes">
+      >;
+      appointments: TableDef<
+        Appointment,
+        Partial<Appointment> & Pick<Appointment, "patient_id" | "dentist_id" | "chair_id" | "starts_at" | "ends_at">,
+        [
+          PatientFk<"appointments">,
+          Fk<"appointments", "dentist_id", "profiles">,
+          Fk<"appointments", "chair_id", "chairs">,
+          Fk<"appointments", "type_id", "appointment_types">,
+        ]
+      >;
+      schedule_blocks: TableDef<
+        ScheduleBlock,
+        Partial<ScheduleBlock> & Pick<ScheduleBlock, "starts_at" | "ends_at" | "reason">,
+        [Fk<"schedule_blocks", "dentist_id", "profiles">, Fk<"schedule_blocks", "chair_id", "chairs">]
+      >;
+      waitlist: TableDef<
+        WaitlistEntry,
+        Partial<WaitlistEntry> & Pick<WaitlistEntry, "patient_id">,
+        [
+          PatientFk<"waitlist">,
+          Fk<"waitlist", "dentist_id", "profiles">,
+          Fk<"waitlist", "type_id", "appointment_types">,
+        ]
+      >;
       consent_templates: TableDef<ConsentTemplate, Partial<ConsentTemplate> & Pick<ConsentTemplate, "title" | "body">>;
       consents: TableDef<
         Consent,
@@ -335,7 +431,7 @@ export type Database = {
       can_access_clinical: { Args: { p_patient_id: string }; Returns: boolean };
       can_write_clinical: { Args: { p_patient_id: string }; Returns: boolean };
     };
-    Enums: { app_role: AppRole; sex: Sex; finding_layer: FindingLayer; tooth_surface: ToothSurface; file_kind: FileKind };
+    Enums: { app_role: AppRole; sex: Sex; finding_layer: FindingLayer; tooth_surface: ToothSurface; file_kind: FileKind; appointment_status: AppointmentStatus };
     CompositeTypes: { [_ in never]: never };
   };
 };

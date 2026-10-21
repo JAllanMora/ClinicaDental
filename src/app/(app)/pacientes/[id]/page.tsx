@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Card } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import { formatDate, formatDateTime, fullName } from "@/lib/format";
+import { STATUS, clinicParts, minutesToLabel, longDay } from "@/lib/agenda";
+import { createClient } from "@/lib/supabase/server";
 import { getPatient } from "./data";
 import { ActiveToggle } from "./active-toggle";
 
@@ -25,6 +27,15 @@ export default async function PatientSummaryPage({ params }: PageProps<"/pacient
   const profile = await requireProfile();
   const { id } = await params;
   const patient = (await getPatient(id))!;
+  const supabase = await createClient();
+  const { data: upcoming } = await supabase
+    .from("appointments")
+    .select("id, starts_at, status, reason, dentist:profiles!appointments_dentist_id_fkey(full_name)")
+    .eq("patient_id", id)
+    .gte("starts_at", new Date().toISOString())
+    .not("status", "in", "(cancelada,no_asistio,completada)")
+    .order("starts_at")
+    .limit(5);
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -59,6 +70,31 @@ export default async function PatientSummaryPage({ params }: PageProps<"/pacient
           <Row label="Alta" value={formatDateTime(patient.created_at)} />
           <Row label="Notas" value={patient.notes} />
         </dl>
+      </Card>
+      <Card>
+        <h2 className="mb-2 font-semibold text-brand-900">Próximas citas</h2>
+        {!upcoming?.length ? (
+          <p className="py-2 text-sm text-brand-700/70">Sin citas programadas.</p>
+        ) : (
+          <ul className="divide-y divide-brand-50">
+            {upcoming.map((a) => {
+              const { day, minutes } = clinicParts(a.starts_at);
+              return (
+                <li key={a.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                  <a href={`/agenda?fecha=${day}`} className="hover:text-magenta-500">
+                    <span className="block font-medium first-letter:uppercase text-brand-900">
+                      {longDay(day)} · {minutesToLabel(minutes)}
+                    </span>
+                    <span className="block text-xs text-brand-700/70">
+                      {a.reason} · {a.dentist?.full_name}
+                    </span>
+                  </a>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] ${STATUS[a.status].tone}`}>{STATUS[a.status].label}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </Card>
       {profile.role !== "dentist" && (
         <Card>

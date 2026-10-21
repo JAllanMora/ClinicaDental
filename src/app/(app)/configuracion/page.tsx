@@ -2,21 +2,22 @@ import type { Metadata } from "next";
 import { Card, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { BranchForm, ChairForm, ChairToggle, InviteForm, StaffRow } from "./forms";
+import { AppointmentTypeRow, BranchForm, ChairForm, ChairToggle, InviteForm, StaffRow } from "./forms";
 
 export const metadata: Metadata = { title: "Configuración" };
 
 export default async function SettingsPage() {
   const me = await requireProfile(["admin"]);
   const supabase = await createClient();
-  const [{ data: staff }, { data: branches }] = await Promise.all([
+  const [{ data: staff }, { data: branches }, { data: types }] = await Promise.all([
     supabase.from("profiles").select("*").order("active", { ascending: false }).order("full_name"),
     supabase.from("branches").select("*, chairs(*)").order("name"),
+    supabase.from("appointment_types").select("*").order("active", { ascending: false }).order("name"),
   ]);
 
   return (
     <>
-      <PageHeader title="Configuración" description="Personal, roles, sucursales y sillones." />
+      <PageHeader title="Configuración" description="Personal, roles, sucursales, sillones y tipos de cita." />
 
       <div className="space-y-6">
         <Card>
@@ -55,6 +56,15 @@ export default async function SettingsPage() {
               </div>
             ))}
             <BranchForm />
+          </div>
+        </Card>
+
+        <Card>
+          <h2 className="font-semibold text-brand-900">Tipos de cita</h2>
+          <p className="mb-3 mt-1 text-sm text-brand-700/80">La duración se usa como sugerencia al agendar; el color identifica la cita en la agenda.</p>
+          <div className="divide-y divide-brand-50">
+            {types?.map((t) => <AppointmentTypeRow key={t.id} type={t} />)}
+            <AppointmentTypeRow />
           </div>
         </Card>
       </div>

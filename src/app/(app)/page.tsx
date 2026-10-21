@@ -1,15 +1,9 @@
 import Link from "next/link";
 import { Alert, ButtonLink, Card } from "@/components/ui";
 import { ROLE_LABELS, requireProfile } from "@/lib/auth";
+import { STATUS, dayRange, minutesToLabel, clinicParts, todayStr } from "@/lib/agenda";
 import { fullName, recordNumber } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
-
-const ROADMAP = [
-  { phase: "Fase 2", title: "Expediente clínico", items: "Odontograma, periodontograma, notas de evolución, consentimiento con firma" },
-  { phase: "Fase 3", title: "Imagenología", items: "Radiografías, fotos intraorales, DICOM y STL" },
-  { phase: "Fase 4", title: "Agenda", items: "Vista por doctor y sillón, tipos de cita, lista de espera" },
-  { phase: "Fase 5", title: "Recordatorios", items: "WhatsApp y correo automáticos" },
-];
 
 function greeting() {
   const hour = Number(
@@ -27,7 +21,17 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
 
-  const [{ count: total }, { count: newThisMonth }, { data: recent }] = await Promise.all([
+  const [todayStart, todayEnd] = dayRange(todayStr());
+  let todayQuery = supabase
+    .from("appointments")
+    .select("id, starts_at, status, reason, patient:patients(id, first_name, last_name, second_last_name), dentist:profiles!appointments_dentist_id_fkey(full_name, color)")
+    .gte("starts_at", todayStart)
+    .lt("starts_at", todayEnd)
+    .not("status", "in", "(cancelada,no_asistio)")
+    .order("starts_at");
+  if (profile.role === "dentist") todayQuery = todayQuery.eq("dentist_id", profile.id);
+
+  const [{ count: total }, { count: newThisMonth }, { data: recent }, { data: today }] = await Promise.all([
     supabase.from("patients").select("id", { count: "exact", head: true }).eq("active", true),
     supabase.from("patients").select("id", { count: "exact", head: true }).gte("created_at", monthStart.toISOString()),
     supabase
@@ -35,7 +39,9 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
       .select("id, record_number, first_name, last_name, second_last_name, created_at")
       .order("created_at", { ascending: false })
       .limit(5),
+    todayQuery,
   ]);
+  const pendingToday = (today ?? []).filter((a) => a.status !== "completada").length;
 
   const firstName = profile.full_name.split(" ")[0];
 
@@ -75,9 +81,9 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           <p className="mt-2 text-4xl font-semibold text-magenta-500">{newThisMonth ?? 0}</p>
         </Card>
         <Card>
-          <p className="text-sm text-brand-700/80">Citas de hoy</p>
-          <p className="mt-2 text-4xl font-semibold text-brand-300">—</p>
-          <p className="mt-1 text-xs text-brand-700/60">Disponible con el módulo de agenda</p>
+          <p className="text-sm text-brand-700/80">{profile.role === "dentist" ? "Mis citas de hoy" : "Citas de hoy"}</p>
+          <p className="mt-2 text-4xl font-semibold text-brand-900">{today?.length ?? 0}</p>
+          <p className="mt-1 text-xs text-brand-700/60">{pendingToday} por atender</p>
         </Card>
 
         <Card className="md:col-span-2">
@@ -104,16 +110,36 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         </Card>
 
         <Card>
-          <h2 className="mb-3 font-semibold text-brand-900">Próximamente</h2>
-          <ol className="space-y-3">
-            {ROADMAP.map((r) => (
-              <li key={r.phase} className="text-sm">
-                <span className="text-xs font-semibold uppercase tracking-wide text-magenta-500">{r.phase}</span>
-                <span className="block font-medium text-brand-900">{r.title}</span>
-                <span className="block text-xs text-brand-700/70">{r.items}</span>
-              </li>
-            ))}
-          </ol>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-semibold text-brand-900">Agenda de hoy</h2>
+            <Link href="/agenda" className="text-sm text-brand-600 hover:underline">
+              Abrir agenda
+            </Link>
+          </div>
+          {!today?.length ? (
+            <p className="text-sm text-brand-700/70">No hay citas para hoy.</p>
+          ) : (
+            <ul className="space-y-2">
+              {today.slice(0, 8).map((a) => (
+                <li key={a.id} className="flex items-center gap-3 text-sm">
+                  <span className="w-11 font-mono text-xs text-brand-700">{minutesToLabel(clinicParts(a.starts_at).minutes)}</span>
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: a.dentist?.color ?? "#A0449A" }} />
+                  <span className="min-w-0 flex-1 truncate">
+                    {a.patient ? (
+                      <Link href={`/pacientes/${a.patient.id}`} className="font-medium text-brand-900 hover:text-magenta-500">
+                        {fullName(a.patient)}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
+                    <span className="block truncate text-xs text-brand-700/70">{a.reason}</span>
+                  </span>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] ${STATUS[a.status].tone}`}>{STATUS[a.status].label}</span>
+                </li>
+              ))}
+              {today.length > 8 && <li className="text-xs text-brand-700/70">y {today.length - 8} más…</li>}
+            </ul>
+          )}
         </Card>
       </div>
     </>

@@ -108,3 +108,28 @@ export async function toggleChair(id: string, active: boolean) {
   await supabase.from("chairs").update({ active }).eq("id", id);
   revalidatePath("/configuracion");
 }
+
+const typeSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  duration_minutes: z.coerce.number().int().min(5).max(480),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  active: z.boolean(),
+});
+
+export async function saveAppointmentType(id: string | null, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireProfile(["admin"]);
+  const parsed = typeSchema.safeParse({
+    name: formData.get("name"),
+    duration_minutes: formData.get("duration_minutes"),
+    color: formData.get("color"),
+    active: id ? formData.get("active") === "on" : true,
+  });
+  if (!parsed.success) return { error: "Revisa el nombre y la duración (5 a 480 minutos)." };
+  const supabase = await createClient();
+  const { error } = id
+    ? await supabase.from("appointment_types").update(parsed.data).eq("id", id)
+    : await supabase.from("appointment_types").insert(parsed.data);
+  if (error) return { error: error.code === "23505" ? "Ya existe un tipo de cita con ese nombre." : "No se pudo guardar." };
+  revalidatePath("/configuracion");
+  return { ok: id ? "Guardado." : "Tipo de cita agregado." };
+}

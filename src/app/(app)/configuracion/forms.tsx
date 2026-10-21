@@ -1,9 +1,9 @@
 "use client";
 
 import { useActionState, useTransition } from "react";
-import type { Profile } from "@/lib/database.types";
+import type { AppointmentType, Profile } from "@/lib/database.types";
 import { Alert, Button, Field } from "@/components/ui";
-import { addBranch, addChair, inviteUser, toggleChair, updateStaff, type ActionState } from "./actions";
+import { addBranch, addChair, inviteUser, saveAppointmentType, toggleChair, updateStaff, type ActionState } from "./actions";
 
 const ROLES = [
   { value: "reception", label: "Recepción" },
@@ -146,5 +146,37 @@ export function ChairToggle({ id, name, active }: { id: string; name: string; ac
     >
       {name}
     </button>
+  );
+}
+
+export function AppointmentTypeRow({ type }: { type?: AppointmentType }) {
+  const [state, action, pending] = useActionState<ActionState, FormData>(saveAppointmentType.bind(null, type?.id ?? null), {});
+  return (
+    <form
+      key={type?.updated_at}
+      action={action}
+      className="grid items-center gap-2 py-2 sm:grid-cols-[2.5rem_1fr_7rem_6rem_auto]"
+    >
+      <input type="color" name="color" defaultValue={type?.color ?? "#A0449A"} aria-label="Color" className="h-9 w-10 cursor-pointer rounded border border-brand-200" />
+      <input name="name" required defaultValue={type?.name} placeholder={type ? undefined : "Nuevo tipo de cita"} aria-label="Nombre" className="field" />
+      <label className="flex items-center gap-1 text-sm text-brand-700">
+        <input name="duration_minutes" type="number" min={5} max={480} step={5} required defaultValue={type?.duration_minutes ?? 30} aria-label="Duración" className="field w-20" />
+        min
+      </label>
+      {type ? (
+        <label className="flex items-center gap-1.5 text-sm text-brand-700">
+          <input type="checkbox" name="active" defaultChecked={type.active} /> Activo
+        </label>
+      ) : (
+        <span />
+      )}
+      <div className="flex items-center gap-2">
+        <Button type="submit" variant={type ? "ghost" : "secondary"} disabled={pending}>
+          {type ? "Guardar" : "+ Agregar"}
+        </Button>
+        {state.error && <span className="text-sm text-red-700">{state.error}</span>}
+        {state.ok && <span className="text-sm text-emerald-700">{state.ok}</span>}
+      </div>
+    </form>
   );
 }
