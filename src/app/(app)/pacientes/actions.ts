@@ -35,6 +35,7 @@ const patientSchema = z.object({
     .refine((v) => !v || /^[A-Z]{4}\d{6}[HMX][A-Z]{5}[A-Z\d]\d$/.test(v), "CURP inválida"),
   phone: optionalText,
   email: optionalText.refine((v) => !v || z.email().safeParse(v).success, "Correo inválido"),
+  contact_preference: z.enum(["whatsapp", "sms", "email", "ninguno"]).catch("whatsapp"),
   address: optionalText,
   occupation: optionalText,
   emergency_contact_name: optionalText,

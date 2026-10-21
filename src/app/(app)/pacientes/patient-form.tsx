@@ -62,6 +62,14 @@ export function PatientForm({ action, patient, dentists, branches, cancelHref }:
         <div className="grid gap-4 sm:grid-cols-3">
           {input("phone", "Teléfono / WhatsApp", { type: "tel" })}
           {input("email", "Correo electrónico", { type: "email" })}
+          <Field label="Recordatorios por">
+            <select name="contact_preference" defaultValue={state.values?.contact_preference ?? patient?.contact_preference ?? "whatsapp"} className="field">
+              <option value="whatsapp">WhatsApp</option>
+              <option value="sms">SMS</option>
+              <option value="email">Correo</option>
+              <option value="ninguno">No enviar recordatorios</option>
+            </select>
+          </Field>
           {input("referred_by", "¿Cómo nos conoció?")}
           {input("address", "Domicilio", { className: "sm:col-span-3" })}
           {input("emergency_contact_name", "Contacto de emergencia")}

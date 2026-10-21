@@ -18,9 +18,10 @@ import {
   todayStr,
   toISO,
 } from "@/lib/agenda";
-import { fullName } from "@/lib/format";
+import { formatDateTime, fullName } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 import { Alert, Badge, Button, ButtonLink, Field, cx } from "@/components/ui";
+import { SendOneButton } from "./recordatorios/controls";
 import { addBlock, createAppointment, removeBlock, rescheduleAppointment, searchPatients, setAppointmentStatus } from "./actions";
 
 export type PatientLite = Pick<Patient, "id" | "first_name" | "last_name" | "second_last_name" | "phone">;
@@ -182,6 +183,9 @@ export function AgendaBoard(props: {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <ButtonLink href="/agenda/recordatorios" variant="secondary">
+            Recordatorios
+          </ButtonLink>
           <ButtonLink href="/agenda/espera" variant="secondary">
             Lista de espera
             {props.waitlist.length > 0 && <Badge tone="magenta">{props.waitlist.length}</Badge>}
@@ -466,6 +470,10 @@ function DayColumn({
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: STATUS[a.status].dot }} />
               <span className="truncate font-semibold text-brand-950">{name}</span>
+              {a.patient_response === "cambio" && (
+                <span className="ml-auto shrink-0 rounded bg-red-100 px-1 text-[10px] font-semibold text-red-700">Pidió cambio</span>
+              )}
+              {a.patient_response === "confirmada" && <span className="ml-auto shrink-0 text-emerald-600" aria-label="Confirmó por enlace">✓</span>}
             </span>
             {height > 30 && (
               <span className="block truncate text-brand-800">
@@ -757,7 +765,19 @@ function AppointmentPanel({
           <Info label="Tipo" value={type?.name ?? "—"} />
           <Info label="Motivo" value={appt.reason ?? "—"} />
         </dl>
+        {appt.patient_response === "cambio" && (
+          <Alert>El paciente pidió cambiar esta cita desde el enlace del recordatorio. Llámale para reprogramar.</Alert>
+        )}
         {appt.notes && <p className="rounded-lg border border-brand-100 p-3 text-brand-900">{appt.notes}</p>}
+        {!closed && appt.patient && (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-brand-700/80">
+            <span>
+              {appt.reminder_sent_at ? `Recordatorio enviado ${formatDateTime(appt.reminder_sent_at)}` : "Sin recordatorio enviado"}
+              {appt.patient_response === "confirmada" && " · confirmó por enlace"}
+            </span>
+            <SendOneButton id={appt.id} label={appt.reminder_sent_at ? "Reenviar recordatorio" : "Enviar recordatorio"} />
+          </div>
+        )}
         {appt.cancel_reason && <p className="text-red-700">Motivo de cancelación: {appt.cancel_reason}</p>}
 
         {canEdit && !closed && (

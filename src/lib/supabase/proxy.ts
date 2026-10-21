@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseKey, supabaseUrl } from "./env";
 
-const PUBLIC_PATHS = ["/login", "/auth", "/recuperar"];
+const PUBLIC_PATHS = ["/login", "/auth", "/recuperar", "/c", "/api/cron"];
 
 /** Refresca la sesión de Supabase y redirige a /login si no hay usuario. */
 export async function updateSession(request: NextRequest) {

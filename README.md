@@ -12,7 +12,7 @@ y desplegado en **Vercel**.
 | 2 | Expediente: odontograma, periodontograma, notas de evolución, consentimiento con firma | ✅ |
 | 3 | Imagenología: radiografías, fotos, DICOM, STL | ✅ |
 | 4 | Agenda multi-doctor/sillón, tipos de cita, lista de espera | ✅ |
-| 5 | Recordatorios por WhatsApp y correo | ⏳ |
+| 5 | Recordatorios por WhatsApp, SMS y correo; confirmación por enlace | ✅ |
 | 6 | Presupuestos, abonos, saldos, corte de caja, comisiones (sin CFDI por ahora) | ⏳ |
 | 7 | Inventario y laboratorio | ⏳ |
 | 8 | Reportes, métricas y modo tablet para pacientes | ⏳ |
@@ -48,7 +48,7 @@ La seguridad vive en la base de datos (Row Level Security), no sólo en la inter
 4. El bucket privado `clinical` (radiografías, fotos, DICOM, STL) lo crea la migración de la fase 3.
    Si tu plan de Supabase limita el tamaño de archivo, ajústalo en **Storage → Settings** (se recomienda 200 MB).
 5. La agenda se actualiza en tiempo real: la migración de la fase 4 agrega `appointments` y
-   `schedule_blocks` a la publicación `supabase_realtime` (revisa en **Database → Publications** que esté activa).
+   `waitlist` a la publicación `supabase_realtime` (revisa en **Database → Publications** que esté activa).
 6. En **Authentication → URL Configuration**: pon la URL de Vercel como *Site URL* y agrégala a *Redirect URLs*.
 7. En **Authentication → Email Templates**, cambia el enlace de estas plantillas:
    - *Invite user*: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite`
@@ -76,7 +76,24 @@ npm run lint
 npm run typecheck
 ```
 
-### 4. Vercel
+### 4. Recordatorios (WhatsApp, SMS y correo)
+
+- **Envío automático**: `vercel.json` programa `/api/cron/recordatorios` todos los días a las 8:00 (hora del
+  centro de México). Define `CRON_SECRET` en Vercel para protegerlo. Se envía a las citas *programadas* o
+  *confirmadas* del día configurado (por defecto, el día siguiente) que aún no tengan recordatorio.
+- **Canal**: el que eligió el paciente en su ficha (WhatsApp, SMS, correo o ninguno). Si falta el dato,
+  se usa el siguiente disponible.
+- **WhatsApp y SMS** con [Twilio](https://www.twilio.com/): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
+  `TWILIO_WHATSAPP_FROM`, `TWILIO_SMS_FROM`. Para WhatsApp en producción Meta exige una plantilla aprobada:
+  créala en Twilio → Content Template Builder con las variables `{{1}}` paciente, `{{2}}` fecha, `{{3}}` hora,
+  `{{4}}` doctor y `{{5}}` enlace, y pon su SID en `TWILIO_WHATSAPP_CONTENT_SID`.
+- **Correo** con [Resend](https://resend.com/): `RESEND_API_KEY` y `EMAIL_FROM` (dominio verificado).
+- **Confirmación**: cada mensaje lleva un enlace `/c/<token>` donde el paciente confirma o pide un cambio, sin
+  iniciar sesión. La agenda lo marca al instante.
+- Sin credenciales todo funciona en **modo prueba**: los mensajes se registran en *Agenda → Recordatorios*
+  pero no salen.
+
+### 5. Vercel
 
 Importa el repositorio en Vercel, agrega las variables de entorno y despliega. No requiere configuración extra.
 

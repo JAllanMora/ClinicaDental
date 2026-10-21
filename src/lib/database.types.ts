@@ -73,6 +73,7 @@ export type Patient = {
   active: boolean;
   created_by: string | null;
   search: string;
+  contact_preference: ContactChannel;
 } & Timestamps;
 
 export type PatientCareTeam = {
@@ -244,6 +245,10 @@ export type Appointment = {
   confirmed_at: string | null;
   arrived_at: string | null;
   created_by: string | null;
+  confirm_token: string;
+  reminder_sent_at: string | null;
+  patient_response: "confirmada" | "cambio" | null;
+  patient_responded_at: string | null;
 } & Timestamps;
 
 export type ScheduleBlock = {
@@ -271,6 +276,49 @@ export type WaitlistEntry = {
   appointment_id: string | null;
   created_by: string | null;
 } & Timestamps;
+
+export type ContactChannel = "whatsapp" | "sms" | "email" | "ninguno";
+export type NotificationStatus = "pendiente" | "enviado" | "simulado" | "fallido";
+
+export type ReminderSettings = {
+  id: boolean;
+  enabled: boolean;
+  days_before: number;
+  clinic_phone: string | null;
+  whatsapp_template: string;
+  sms_template: string;
+  email_subject: string;
+  email_template: string;
+  updated_at: string;
+};
+
+export type Notification = {
+  id: string;
+  appointment_id: string | null;
+  patient_id: string;
+  channel: Exclude<ContactChannel, "ninguno">;
+  kind: "recordatorio" | "confirmacion" | "manual";
+  recipient: string;
+  body: string;
+  status: NotificationStatus;
+  provider_id: string | null;
+  error: string | null;
+  sent_by: string | null;
+  created_at: string;
+  sent_at: string | null;
+};
+
+export type AppointmentByToken = {
+  patient_first_name: string;
+  dentist_name: string;
+  starts_at: string;
+  ends_at: string;
+  status: AppointmentStatus;
+  patient_response: "confirmada" | "cambio" | null;
+  branch_name: string;
+  branch_address: string | null;
+  branch_phone: string | null;
+};
 
 type Fk<T extends string, C extends string, R extends string> = {
   foreignKeyName: `${T}_${C}_fkey`;
@@ -338,6 +386,7 @@ export type Database = {
             | "created_by"
             | "created_at"
             | "updated_at"
+            | "contact_preference"
           >,
           "record_number" | "search"
         >,
@@ -414,6 +463,12 @@ export type Database = {
           Fk<"waitlist", "type_id", "appointment_types">,
         ]
       >;
+      reminder_settings: TableDef<ReminderSettings, Partial<ReminderSettings>>;
+      notifications: TableDef<
+        Notification,
+        Partial<Notification> & Pick<Notification, "patient_id" | "channel" | "recipient" | "body">,
+        [PatientFk<"notifications">, Fk<"notifications", "appointment_id", "appointments">, Fk<"notifications", "sent_by", "profiles">]
+      >;
       consent_templates: TableDef<ConsentTemplate, Partial<ConsentTemplate> & Pick<ConsentTemplate, "title" | "body">>;
       consents: TableDef<
         Consent,
@@ -430,8 +485,10 @@ export type Database = {
       is_admin: { Args: Record<string, never>; Returns: boolean };
       can_access_clinical: { Args: { p_patient_id: string }; Returns: boolean };
       can_write_clinical: { Args: { p_patient_id: string }; Returns: boolean };
+      appointment_by_token: { Args: { p_token: string }; Returns: AppointmentByToken[] };
+      respond_appointment: { Args: { p_token: string; p_response: "confirmada" | "cambio" }; Returns: boolean };
     };
-    Enums: { app_role: AppRole; sex: Sex; finding_layer: FindingLayer; tooth_surface: ToothSurface; file_kind: FileKind; appointment_status: AppointmentStatus };
+    Enums: { app_role: AppRole; sex: Sex; finding_layer: FindingLayer; tooth_surface: ToothSurface; file_kind: FileKind; appointment_status: AppointmentStatus; contact_channel: ContactChannel; notification_status: NotificationStatus };
     CompositeTypes: { [_ in never]: never };
   };
 };

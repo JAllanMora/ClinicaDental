@@ -54,6 +54,7 @@ export default async function PatientSummaryPage({ params }: PageProps<"/pacient
         <dl className="divide-y divide-brand-50">
           <Row label="Teléfono" value={patient.phone} />
           <Row label="Correo" value={patient.email} />
+          <Row label="Recordatorios" value={{ whatsapp: "WhatsApp", sms: "SMS", email: "Correo", ninguno: "No enviar" }[patient.contact_preference]} />
           <Row label="Domicilio" value={patient.address} />
           <Row
             label="Emergencia"
