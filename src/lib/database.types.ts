@@ -7,6 +7,18 @@ export type AppRole = "admin" | "dentist" | "reception";
 export type Sex = "F" | "M" | "X";
 export type FindingLayer = "previo" | "patologia" | "propuesto" | "realizado";
 export type ToothSurface = "M" | "O" | "D" | "V" | "L";
+export type FileKind =
+  | "periapical"
+  | "aleta_mordida"
+  | "oclusal"
+  | "panoramica"
+  | "cefalometrica"
+  | "tomografia"
+  | "foto_intraoral"
+  | "foto_extraoral"
+  | "escaneo_stl"
+  | "documento"
+  | "otro";
 
 type Timestamps = { created_at: string; updated_at: string };
 
@@ -181,6 +193,25 @@ export type Consent = {
 
 type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
+export type PatientFile = {
+  id: string;
+  patient_id: string;
+  kind: FileKind;
+  storage_path: string;
+  file_name: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  format: "imagen" | "dicom" | "stl" | "pdf" | "otro";
+  taken_on: string;
+  teeth: number[];
+  description: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+  voided_at: string | null;
+  voided_by: string | null;
+  void_reason: string | null;
+};
+
 type PatientFk<T extends string> = {
   foreignKeyName: `${T}_patient_id_fkey`;
   columns: ["patient_id"];
@@ -279,6 +310,14 @@ export type Database = {
           { foreignKeyName: "clinical_notes_dentist_id_fkey"; columns: ["dentist_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
         ]
       >;
+      patient_files: TableDef<
+        PatientFile,
+        Partial<PatientFile> & Pick<PatientFile, "patient_id" | "kind" | "storage_path" | "file_name">,
+        [
+          PatientFk<"patient_files">,
+          { foreignKeyName: "patient_files_uploaded_by_fkey"; columns: ["uploaded_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      >;
       consent_templates: TableDef<ConsentTemplate, Partial<ConsentTemplate> & Pick<ConsentTemplate, "title" | "body">>;
       consents: TableDef<
         Consent,
@@ -296,7 +335,7 @@ export type Database = {
       can_access_clinical: { Args: { p_patient_id: string }; Returns: boolean };
       can_write_clinical: { Args: { p_patient_id: string }; Returns: boolean };
     };
-    Enums: { app_role: AppRole; sex: Sex; finding_layer: FindingLayer; tooth_surface: ToothSurface };
+    Enums: { app_role: AppRole; sex: Sex; finding_layer: FindingLayer; tooth_surface: ToothSurface; file_kind: FileKind };
     CompositeTypes: { [_ in never]: never };
   };
 };

@@ -18,7 +18,7 @@ export function PatientTabs({ id, clinical }: { id: string; clinical: boolean })
           { href: `${base}/periodontograma`, label: "Periodontograma" },
           { href: `${base}/evolucion`, label: "Notas de evolución" },
           { href: `${base}/consentimientos`, label: "Consentimientos" },
-          { href: `${base}/imagenes`, label: "Imágenes", soon: true },
+          { href: `${base}/imagenes`, label: "Imágenes" },
         ]
       : []),
   ];

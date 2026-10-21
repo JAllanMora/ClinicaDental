@@ -10,7 +10,7 @@ y desplegado en **Vercel**.
 | --- | --- | --- |
 | 1 | Base: marca, login, roles con RLS, bitácora, pacientes, historia clínica, configuración | ✅ |
 | 2 | Expediente: odontograma, periodontograma, notas de evolución, consentimiento con firma | ✅ |
-| 3 | Imagenología: radiografías, fotos, DICOM, STL | ⏳ |
+| 3 | Imagenología: radiografías, fotos, DICOM, STL | ✅ |
 | 4 | Agenda multi-doctor/sillón, tipos de cita, lista de espera | ⏳ |
 | 5 | Recordatorios por WhatsApp y correo | ⏳ |
 | 6 | Presupuestos, abonos, saldos, corte de caja, comisiones (sin CFDI por ahora) | ⏳ |
@@ -45,11 +45,13 @@ La seguridad vive en la base de datos (Row Level Security), no sólo en la inter
    - O copia y pega cada archivo en **SQL Editor** → Run.
 3. En **Authentication → Sign In / Providers → Email**: desactiva *Allow new users to sign up*
    (el personal entra sólo por invitación).
-4. En **Authentication → URL Configuration**: pon la URL de Vercel como *Site URL* y agrégala a *Redirect URLs*.
-5. En **Authentication → Email Templates**, cambia el enlace de estas plantillas:
+4. El bucket privado `clinical` (radiografías, fotos, DICOM, STL) lo crea la migración de la fase 3.
+   Si tu plan de Supabase limita el tamaño de archivo, ajústalo en **Storage → Settings** (se recomienda 200 MB).
+5. En **Authentication → URL Configuration**: pon la URL de Vercel como *Site URL* y agrégala a *Redirect URLs*.
+6. En **Authentication → Email Templates**, cambia el enlace de estas plantillas:
    - *Invite user*: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite`
    - *Reset password*: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`
-6. Crea el primer usuario (será administrador): **Authentication → Users → Add user**, con
+7. Crea el primer usuario (será administrador): **Authentication → Users → Add user**, con
    *Auto Confirm User* marcado.
 
 ### 2. Variables de entorno
