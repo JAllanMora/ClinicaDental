@@ -36,12 +36,20 @@ export default async function CommissionsPage({ searchParams }: PageProps<"/comi
     .order("completed_at");
   if (profile.role === "dentist") itemsQuery = itemsQuery.eq("completed_by", profile.id);
   const [{ data: dentists }, { data: items }] = await Promise.all([dentistQuery, itemsQuery]);
+  // El costo de laboratorio de un tratamiento se descuenta antes de calcular la comisión.
+  const itemIds = (items ?? []).map((i) => i.id);
+  const { data: labCosts } = itemIds.length
+    ? await supabase.from("lab_orders").select("plan_item_id, cost").in("plan_item_id", itemIds).neq("status", "cancelado")
+    : { data: [] };
+  const labByItem = new Map<string, number>();
+  for (const l of labCosts ?? []) if (l.plan_item_id) labByItem.set(l.plan_item_id, (labByItem.get(l.plan_item_id) ?? 0) + Number(l.cost ?? 0));
 
   const rows = (dentists ?? []).map((d) => {
     const mine = (items ?? []).filter((i) => i.completed_by === d.id);
     const detail = mine.map((i) => {
       const pct = Number(i.treatment?.commission_pct ?? d.commission_pct);
-      return { ...i, pct, commission: round2((Number(i.line_total) * pct) / 100) };
+      const lab = labByItem.get(i.id) ?? 0;
+      return { ...i, pct, lab, commission: round2((Math.max(0, Number(i.line_total) - lab) * pct) / 100) };
     });
     return {
       ...d,
@@ -56,7 +64,7 @@ export default async function CommissionsPage({ searchParams }: PageProps<"/comi
     <>
       <PageHeader
         title="Comisiones"
-        description="Producción de cada odontólogo (tratamientos marcados como realizados) y su comisión. El porcentaje se define por odontólogo en Configuración o por tratamiento en el arancel."
+        description="Producción de cada odontólogo (tratamientos marcados como realizados) y su comisión, descontando el costo de laboratorio vinculado. El porcentaje se define por odontólogo en Configuración o por tratamiento en el arancel."
       />
       <div className="mb-6 flex items-center gap-2">
         <Link href={`?mes=${shiftMonth(month, -1)}`} className="rounded-lg px-3 py-1.5 text-brand-700 hover:bg-brand-50" aria-label="Mes anterior">
@@ -103,7 +111,10 @@ export default async function CommissionsPage({ searchParams }: PageProps<"/comi
                           {i.description}
                           {i.tooth && <span className="text-brand-700/70"> · {i.tooth}</span>}
                         </td>
-                        <td className="py-1.5 text-right">{money(i.line_total)}</td>
+                        <td className="py-1.5 text-right">
+                          {money(i.line_total)}
+                          {i.lab > 0 && <span className="block text-[11px] text-brand-700/70">− lab {money(i.lab)}</span>}
+                        </td>
                         <td className="py-1.5 text-right text-xs text-brand-700/70">{i.pct}%</td>
                         <td className="py-1.5 text-right font-medium">{money(i.commission)}</td>
                       </tr>

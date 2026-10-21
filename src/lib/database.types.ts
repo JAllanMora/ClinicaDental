@@ -410,6 +410,72 @@ export type CashClosure = {
 
 export type PatientBalance = { patient_id: string; charged: number; paid: number; balance: number; pending_treatment: number };
 
+export type InventoryMove = "entrada" | "salida" | "ajuste" | "merma";
+export type LabStatus = "por_enviar" | "enviado" | "en_proceso" | "recibido" | "en_prueba" | "ajuste" | "entregado" | "cancelado";
+
+export type InventoryItem = {
+  id: string;
+  branch_id: string;
+  name: string;
+  category: string;
+  unit: string;
+  sku: string | null;
+  supplier: string | null;
+  min_stock: number;
+  active: boolean;
+} & Timestamps;
+
+export type InventoryLot = {
+  id: string;
+  item_id: string;
+  lot_code: string | null;
+  expires_on: string | null;
+  received_qty: number;
+  remaining: number;
+  unit_cost: number | null;
+  received_at: string;
+  created_by: string | null;
+};
+
+export type InventoryMovement = {
+  id: string;
+  item_id: string;
+  lot_id: string | null;
+  kind: InventoryMove;
+  quantity: number;
+  reason: string | null;
+  patient_id: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type InventoryStock = { item_id: string; stock: number; next_expiry: string | null; expired_qty: number };
+
+export type Lab = { id: string; name: string; contact: string | null; phone: string | null; email: string | null; active: boolean } & Timestamps;
+
+export type LabOrder = {
+  id: string;
+  folio: number;
+  patient_id: string;
+  dentist_id: string;
+  lab_id: string | null;
+  plan_item_id: string | null;
+  work_type: string;
+  teeth: string | null;
+  shade: string | null;
+  instructions: string | null;
+  status: LabStatus;
+  due_date: string | null;
+  sent_at: string | null;
+  received_at: string | null;
+  delivered_at: string | null;
+  cost: number | null;
+  notes: string | null;
+  created_by: string | null;
+} & Timestamps;
+
+export type LabOrderEvent = { id: number; order_id: string; status: LabStatus; note: string | null; created_by: string | null; created_at: string };
+
 type Fk<T extends string, C extends string, R extends string> = {
   foreignKeyName: `${T}_${C}_fkey`;
   columns: [C];
@@ -594,6 +660,39 @@ export type Database = {
         Partial<Omit<CashClosure, "difference">> & Pick<CashClosure, "branch_id" | "day" | "totals" | "expected_cash" | "counted_cash">,
         [Fk<"cash_closures", "closed_by", "profiles">, Fk<"cash_closures", "branch_id", "branches">]
       >;
+      inventory_items: TableDef<
+        InventoryItem,
+        Partial<InventoryItem> & Pick<InventoryItem, "branch_id" | "name">,
+        [Fk<"inventory_items", "branch_id", "branches">]
+      >;
+      inventory_lots: TableDef<InventoryLot, never, [Fk<"inventory_lots", "item_id", "inventory_items">, Fk<"inventory_lots", "created_by", "profiles">]>;
+      inventory_movements: TableDef<
+        InventoryMovement,
+        never,
+        [
+          Fk<"inventory_movements", "item_id", "inventory_items">,
+          Fk<"inventory_movements", "lot_id", "inventory_lots">,
+          Fk<"inventory_movements", "created_by", "profiles">,
+          PatientFk<"inventory_movements">,
+        ]
+      >;
+      labs: TableDef<Lab, Partial<Lab> & Pick<Lab, "name">>;
+      lab_orders: TableDef<
+        LabOrder,
+        Partial<Omit<LabOrder, "folio">> & Pick<LabOrder, "patient_id" | "dentist_id" | "work_type">,
+        [
+          PatientFk<"lab_orders">,
+          Fk<"lab_orders", "dentist_id", "profiles">,
+          Fk<"lab_orders", "lab_id", "labs">,
+          Fk<"lab_orders", "plan_item_id", "treatment_plan_items">,
+          Fk<"lab_orders", "created_by", "profiles">,
+        ]
+      >;
+      lab_order_events: TableDef<
+        LabOrderEvent,
+        Partial<LabOrderEvent> & Pick<LabOrderEvent, "order_id" | "status">,
+        [Fk<"lab_order_events", "order_id", "lab_orders">, Fk<"lab_order_events", "created_by", "profiles">]
+      >;
       consent_templates: TableDef<ConsentTemplate, Partial<ConsentTemplate> & Pick<ConsentTemplate, "title" | "body">>;
       consents: TableDef<
         Consent,
@@ -606,6 +705,10 @@ export type Database = {
     };
     Views: {
       patient_balances: { Row: PatientBalance; Relationships: [] };
+      inventory_stock: {
+        Row: InventoryStock;
+        Relationships: [{ foreignKeyName: "inventory_stock_item_id_fkey"; columns: ["item_id"]; isOneToOne: true; referencedRelation: "inventory_items"; referencedColumns: ["id"] }];
+      };
     };
     Functions: {
       current_app_role: { Args: Record<string, never>; Returns: AppRole };
@@ -613,9 +716,17 @@ export type Database = {
       can_access_clinical: { Args: { p_patient_id: string }; Returns: boolean };
       can_write_clinical: { Args: { p_patient_id: string }; Returns: boolean };
       appointment_by_token: { Args: { p_token: string }; Returns: AppointmentByToken[] };
+      inventory_in: {
+        Args: { p_item: string; p_qty: number; p_lot?: string | null; p_expires?: string | null; p_cost?: number | null; p_reason?: string | null };
+        Returns: string;
+      };
+      inventory_out: {
+        Args: { p_item: string; p_qty: number; p_kind?: InventoryMove; p_reason?: string | null; p_patient?: string | null };
+        Returns: undefined;
+      };
       respond_appointment: { Args: { p_token: string; p_response: "confirmada" | "cambio" }; Returns: boolean };
     };
-    Enums: { app_role: AppRole; sex: Sex; finding_layer: FindingLayer; tooth_surface: ToothSurface; file_kind: FileKind; appointment_status: AppointmentStatus; contact_channel: ContactChannel; notification_status: NotificationStatus; plan_status: PlanStatus; plan_item_status: PlanItemStatus; payment_method: PaymentMethod };
+    Enums: { app_role: AppRole; sex: Sex; finding_layer: FindingLayer; tooth_surface: ToothSurface; file_kind: FileKind; appointment_status: AppointmentStatus; contact_channel: ContactChannel; notification_status: NotificationStatus; plan_status: PlanStatus; plan_item_status: PlanItemStatus; payment_method: PaymentMethod; inventory_move: InventoryMove; lab_status: LabStatus };
     CompositeTypes: { [_ in never]: never };
   };
 };

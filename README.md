@@ -14,7 +14,7 @@ y desplegado en **Vercel**.
 | 4 | Agenda multi-doctor/sillón, tipos de cita, lista de espera | ✅ |
 | 5 | Recordatorios por WhatsApp, SMS y correo; confirmación por enlace | ✅ |
 | 6 | Presupuestos, abonos, saldos, corte de caja, comisiones (sin CFDI por ahora) | ✅ |
-| 7 | Inventario y laboratorio | ⏳ |
+| 7 | Inventario por lotes con caducidades y alertas; órdenes de laboratorio | ✅ |
 | 8 | Reportes, métricas y modo tablet para pacientes | ⏳ |
 
 ## Roles y seguridad
