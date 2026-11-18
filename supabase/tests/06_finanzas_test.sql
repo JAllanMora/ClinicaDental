@@ -31,7 +31,7 @@ select pg_temp.expect_error($$update treatment_plan_items set unit_price = 1 whe
 select pg_temp.expect_error($$update treatment_plan_items set status = 'pendiente' where tooth = 16$$, 'sólo admin revierte lo realizado');
 select pg_temp.expect_error($$insert into payments (patient_id, branch_id, amount, method) select maria, branch, 100, 'efectivo' from f$$, 'odontóloga no cobra');
 
-select pg_temp.expect_error($$update profiles set commission_pct = 90 where id = auth.uid()$$, 'odontóloga no cambia su comisión');
+select pg_temp.expect_error($$insert into commission_rates (dentist_id, pct) values (auth.uid(), 90)$$, 'odontóloga no cambia su comisión');
 
 -- Recepción cobra
 select pg_temp.logout();

@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ContactChannel, Database, NotificationStatus, ReminderSettings } from "@/lib/database.types";
-import { clinicParts, dayRange, longDay, minutesToLabel } from "@/lib/agenda";
+import { clinicParts, dayRange, longDay, minutesToLabel12 } from "@/lib/agenda";
 
 type Channel = Exclude<ContactChannel, "ninguno">;
 type Db = SupabaseClient<Database>;
@@ -128,7 +128,7 @@ export async function sendReminder(
   const vars = {
     paciente: appt.patient.first_name,
     fecha: longDay(day),
-    hora: minutesToLabel(minutes),
+    hora: minutesToLabel12(minutes),
     doctor: appt.dentist?.full_name ?? "tu odontólogo",
     enlace: `${siteUrl()}/c/${appt.confirm_token}`,
     telefono: settings.clinic_phone ?? "",

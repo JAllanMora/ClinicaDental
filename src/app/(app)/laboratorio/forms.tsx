@@ -32,6 +32,7 @@ export function OrderForm({
   planItems,
   lockDentist,
   defaultDentist,
+  cost,
 }: {
   patientId?: string;
   order?: LabOrder;
@@ -40,10 +41,13 @@ export function OrderForm({
   planItems: Opt[];
   lockDentist: boolean;
   defaultDentist: string;
+  /** Sólo para el administrador: undefined oculta el campo. */
+  cost?: number | null;
 }) {
   const action = order ? updateOrder.bind(null, order.id) : createOrder.bind(null, patientId!);
   const [state, formAction, pending] = useActionState(action, {});
-  const v = (k: keyof LabOrder) => state.values?.[k] ?? (order?.[k] as string | number | null | undefined)?.toString() ?? "";
+  const v = (k: keyof LabOrder | "cost") =>
+    state.values?.[k] ?? (k === "cost" ? cost : (order?.[k] as string | number | null | undefined))?.toString() ?? "";
   return (
     <form key={state.values ? JSON.stringify(state.values) : (order?.updated_at ?? "nueva")} action={formAction} className="space-y-4">
       {state.error && <Alert>{state.error}</Alert>}
@@ -91,9 +95,11 @@ export function OrderForm({
         <Field label="Fecha comprometida">
           <input name="due_date" type="date" defaultValue={v("due_date")} className="field" />
         </Field>
-        <Field label="Costo del laboratorio">
-          <input name="cost" type="number" min={0} step="0.01" defaultValue={v("cost")} className="field" />
-        </Field>
+        {cost !== undefined && (
+          <Field label="Costo del laboratorio" hint="Sólo lo ve el administrador.">
+            <input name="cost" type="number" min={0} step="0.01" defaultValue={v("cost")} className="field" />
+          </Field>
+        )}
       </div>
       <Field label="Indicaciones para el laboratorio">
         <textarea name="instructions" rows={3} defaultValue={v("instructions")} className="field" />

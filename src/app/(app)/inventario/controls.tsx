@@ -43,7 +43,7 @@ export function ItemForm({ item, branchId, categories }: { item?: InventoryItem;
   );
 }
 
-export function StockButtons({ itemId, unit }: { itemId: string; unit: string }) {
+export function StockButtons({ itemId, unit, showCost = false }: { itemId: string; unit: string; showCost?: boolean }) {
   const [mode, setMode] = useState<"in" | "out" | null>(null);
   const [qty, setQty] = useState("");
   const [lot, setLot] = useState("");
@@ -99,9 +99,11 @@ export function StockButtons({ itemId, unit }: { itemId: string; unit: string })
             <Field label="Caducidad">
               <input type="date" value={expires} onChange={(e) => setExpires(e.target.value)} className="field" />
             </Field>
-            <Field label="Costo unitario">
-              <input type="number" min={0} step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} className="field" />
-            </Field>
+            {showCost && (
+              <Field label="Costo unitario" hint="Sólo lo ve el administrador.">
+                <input type="number" min={0} step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} className="field" />
+              </Field>
+            )}
           </>
         ) : (
           <>

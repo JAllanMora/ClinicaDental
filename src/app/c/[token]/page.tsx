@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { revalidatePath } from "next/cache";
 import { AuthShell } from "@/components/auth-shell";
-import { clinicParts, longDay, minutesToLabel } from "@/lib/agenda";
+import { clinicParts, longDay, minutesToLabel12 } from "@/lib/agenda";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Tu cita", robots: { index: false } };
@@ -45,7 +45,7 @@ export default async function ConfirmPage({ params }: PageProps<"/c/[token]">) {
         <div>
           <dt className="text-xs text-brand-700/70">Hora</dt>
           <dd className="font-medium text-brand-950">
-            {minutesToLabel(s.minutes)} a {minutesToLabel(e.minutes)}
+            {minutesToLabel12(s.minutes)} a {minutesToLabel12(e.minutes)}
           </dd>
         </div>
         <div>

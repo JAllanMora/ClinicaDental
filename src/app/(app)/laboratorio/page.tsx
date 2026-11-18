@@ -22,14 +22,20 @@ export default async function LabPage({ searchParams }: PageProps<"/laboratorio"
     .order("created_at", { ascending: false })
     .limit(200);
   if (!all) q = q.in("status", LAB_OPEN);
-  const [{ data: orders }, { data: labs }] = await Promise.all([q, supabase.from("labs").select("*").order("name")]);
+  const [{ data: orders }, { data: labs }, { data: costs }] = await Promise.all([
+    q,
+    supabase.from("labs").select("*").order("name"),
+    // Sólo el admin puede leer costos (RLS); para los demás llega vacío.
+    profile.role === "admin" ? supabase.from("lab_order_costs").select("order_id, cost") : Promise.resolve({ data: [] }),
+  ]);
+  const costOf = new Map((costs ?? []).map((c) => [c.order_id, Number(c.cost)]));
   const today = todayStr();
 
   return (
     <>
       <PageHeader
         title="Laboratorio"
-        description="Trabajos enviados a laboratorio: estado, fecha comprometida y costo."
+        description={profile.role === "admin" ? "Trabajos enviados a laboratorio: estado, fecha comprometida y costo." : "Trabajos enviados a laboratorio: estado y fecha comprometida."}
         actions={<ButtonLink href="/laboratorio/nueva">+ Nueva orden</ButtonLink>}
       />
       <div className="mb-4 flex gap-2">
@@ -63,7 +69,7 @@ export default async function LabPage({ searchParams }: PageProps<"/laboratorio"
                       </span>
                       <span className="text-right text-xs">
                         {o.due_date && <span className={late ? "font-semibold text-red-600" : "text-brand-700"}>{late ? "Atrasado · " : "Para "}{formatDate(o.due_date)}</span>}
-                        {o.cost !== null && <span className="block text-brand-700/70">{money(o.cost)}</span>}
+                        {costOf.has(o.id) && <span className="block text-brand-700/70">{money(costOf.get(o.id)!)}</span>}
                       </span>
                       <Badge tone={LAB_STATUS[o.status].tone}>{LAB_STATUS[o.status].label}</Badge>
                     </Link>

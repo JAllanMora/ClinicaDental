@@ -55,6 +55,16 @@ export function SettingsForm({ settings, types }: { settings: WhatsappSettings; 
           <input type="number" name="min_notice_hours" min={0} max={168} defaultValue={Math.round(settings.min_notice_minutes / 60)} className="field" />
         </Field>
       </div>
+      <label className="flex items-start gap-2 text-sm text-brand-800">
+        <input type="checkbox" name="ask_dentist" defaultChecked={settings.ask_dentist} className="mt-1" />
+        <span>
+          Preguntar con qué doctor quiere la cita
+          <span className="block text-xs text-brand-700/70">
+            Si hay más de un doctor para ese tipo de cita, el bot le deja elegir o tomar el primero disponible. Los doctores de cada tipo se
+            marcan en Configuración → Tipos de cita.
+          </span>
+        </span>
+      </label>
       <fieldset>
         <legend className="mb-2 text-sm font-medium text-brand-900">Tipos de cita que el paciente puede agendar solo</legend>
         <div className="grid gap-2 sm:grid-cols-2">

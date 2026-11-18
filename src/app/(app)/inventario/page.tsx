@@ -69,7 +69,7 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
                     <span className={`text-lg font-semibold ${r.low ? "text-red-600" : "text-brand-900"}`}>{r.stock}</span>
                     <span className="text-xs text-brand-700/70"> {r.unit}</span>
                   </span>
-                  <StockButtons itemId={r.id} unit={r.unit} />
+                  <StockButtons itemId={r.id} unit={r.unit} showCost={profile.role === "admin"} />
                 </li>
               ))}
             </ul>

@@ -39,8 +39,15 @@ test("conversación completa contra la base local", { skip: !local && "Sin Supab
   assert.match(await say(maria, "1"), /tipo de cita/);
   const types = (await db.settings()).types;
   const limpieza = types.findIndex((t) => t.name === "Limpieza") + 1;
-  const options = await say(maria, String(limpieza));
-  assert.match(options, /próximos horarios para limpieza[\s\S]*1\. [\s\S]*0\. Ver más fechas/);
+  const doctors = await db.dentistsFor(types[limpieza - 1].id);
+  let options = await say(maria, String(limpieza));
+  if (doctors.length > 1) {
+    // María es paciente de la Dra. López: aparece primero.
+    assert.match(options, /¿Con qué doctor[\s\S]*1\. Dra\. Ana López[\s\S]*Con el primero disponible/);
+    options = await say(maria, "1");
+    assert.match(options, /con Dra\. Ana López:/);
+  }
+  assert.match(options, /próximos horarios para limpieza[\s\S]*1\. [\s\S]*(a|p)\. m\.[\s\S]*0\. Ver más fechas/);
   assert.match(await say(maria, "1"), /¿Te agendo limpieza/);
   assert.match(await say(maria, "1"), /¡Listo, María! Tu cita quedó/);
   const mine = await db.upcoming((await db.findPatient(maria)).id);
@@ -69,7 +76,8 @@ test("conversación completa contra la base local", { skip: !local && "Sin Supab
   const pedro = await db.findPatient(nuevo);
   assert.equal(pedro.first_name, "Pedro");
   assert.equal(pedro.last_name, "Sánchez Ruiz");
-  await say(nuevo, "1");
+  const first = await say(nuevo, "1");
+  if (/¿Con qué doctor/.test(first)) await say(nuevo, String(first.split("\n").length - 1));
   await say(nuevo, "2");
   assert.match(await say(nuevo, "1"), /¡Listo, Pedro!/);
 
@@ -80,4 +88,28 @@ test("conversación completa contra la base local", { skip: !local && "Sin Supab
   assert.ok(await db.waitingForHuman("8199990000"));
   assert.match(await say(nuevo, "menu"), /1\. Agendar/);
   assert.equal(await db.waitingForHuman("8199990000"), false);
+});
+
+test("un tipo de cita con un solo doctor no pregunta y sólo ofrece a ese doctor", { skip: !local && "Sin Supabase local" }, async () => {
+  const db = createDb({ url: config.supabaseUrl, serviceKey: config.serviceKey });
+  const { createClient } = await import("@supabase/supabase-js");
+  const sb = createClient(config.supabaseUrl, config.serviceKey, { auth: { persistSession: false } });
+  const types = (await db.settings()).types;
+  const type = types.find((t) => t.name === "Limpieza");
+  const ruiz = (await sb.from("profiles").select("id").eq("email", "dentista2@clinica.local").single()).data;
+  await sb.from("appointment_type_dentists").insert({ type_id: type.id, dentist_id: ruiz.id });
+  try {
+    const flow = createFlow(db);
+    const say = async (phone, text) => (await flow.handle(phone, text)).join("\n---\n");
+    const jose = "5218112345602";
+    await say(jose, "hola");
+    await say(jose, "1");
+    const options = await say(jose, String(types.indexOf(type) + 1));
+    assert.doesNotMatch(options, /¿Con qué doctor/);
+    assert.match(options, /próximos horarios para limpieza/);
+    assert.doesNotMatch(options, /Ana López/);
+    assert.match(options, /Carlos Ruiz/);
+  } finally {
+    await sb.from("appointment_type_dentists").delete().eq("type_id", type.id);
+  }
 });

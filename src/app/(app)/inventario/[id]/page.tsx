@@ -15,7 +15,8 @@ export default async function ItemPage({ params }: PageProps<"/inventario/[id]">
   const profile = await requireProfile();
   const { id } = await params;
   const supabase = await createClient();
-  const [{ data: item }, { data: lots }, { data: moves }] = await Promise.all([
+  const isAdmin = profile.role === "admin";
+  const [{ data: item }, { data: lots }, { data: moves }, { data: costs }] = await Promise.all([
     supabase.from("inventory_items").select("*").eq("id", id).maybeSingle(),
     supabase.from("inventory_lots").select("*").eq("item_id", id).order("expires_on", { nullsFirst: false }).order("received_at"),
     supabase
@@ -24,8 +25,10 @@ export default async function ItemPage({ params }: PageProps<"/inventario/[id]">
       .eq("item_id", id)
       .order("created_at", { ascending: false })
       .limit(100),
+    isAdmin ? supabase.from("inventory_lot_costs").select("lot_id, unit_cost") : Promise.resolve({ data: [] }),
   ]);
   if (!item) notFound();
+  const costOf = new Map((costs ?? []).map((c) => [c.lot_id, Number(c.unit_cost)]));
   const stock = (lots ?? []).reduce((s, l) => s + Number(l.remaining), 0);
   const today = todayStr();
 
@@ -41,7 +44,7 @@ export default async function ItemPage({ params }: PageProps<"/inventario/[id]">
         }
       />
       <div className="mb-6 flex justify-end">
-        <StockButtons itemId={item.id} unit={item.unit} />
+        <StockButtons itemId={item.id} unit={item.unit} showCost={isAdmin} />
       </div>
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-6">
@@ -53,7 +56,7 @@ export default async function ItemPage({ params }: PageProps<"/inventario/[id]">
                   <th className="py-2 font-medium">Lote</th>
                   <th className="py-2 font-medium">Caducidad</th>
                   <th className="py-2 font-medium">Recibido</th>
-                  <th className="py-2 text-right font-medium">Costo</th>
+                  {isAdmin && <th className="py-2 text-right font-medium">Costo</th>}
                   <th className="py-2 text-right font-medium">Queda</th>
                 </tr>
               </thead>
@@ -67,7 +70,7 @@ export default async function ItemPage({ params }: PageProps<"/inventario/[id]">
                         {l.expires_on ? formatDate(l.expires_on) : "—"} {l.expires_on && l.expires_on < today && <Badge tone="red">Caducado</Badge>}
                       </td>
                       <td className="py-2 text-brand-700/80">{formatDate(l.received_at)}</td>
-                      <td className="py-2 text-right">{l.unit_cost !== null ? money(l.unit_cost) : "—"}</td>
+                      {isAdmin && <td className="py-2 text-right">{costOf.has(l.id) ? money(costOf.get(l.id)!) : "—"}</td>}
                       <td className="py-2 text-right font-medium">
                         {Number(l.remaining)} / {Number(l.received_qty)}
                       </td>

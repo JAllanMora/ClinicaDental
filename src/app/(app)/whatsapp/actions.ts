@@ -25,6 +25,7 @@ export async function markAttended(phone: string): Promise<Result> {
 
 const settingsSchema = z.object({
   enabled: z.boolean(),
+  ask_dentist: z.boolean(),
   days_ahead: z.coerce.number().int().min(1).max(60),
   min_notice_minutes: z.coerce.number().int().min(0).max(10080),
   bookable_type_ids: z.array(z.uuid()).min(1, "Elige al menos un tipo de cita."),
@@ -36,6 +37,7 @@ export async function saveWhatsappSettings(_prev: Result, formData: FormData): P
   await requireProfile(["admin"]);
   const parsed = settingsSchema.safeParse({
     enabled: formData.get("enabled") === "on",
+    ask_dentist: formData.get("ask_dentist") === "on",
     days_ahead: formData.get("days_ahead"),
     min_notice_minutes: Number(formData.get("min_notice_hours") ?? 0) * 60,
     bookable_type_ids: formData.getAll("bookable_type_ids").map(String),

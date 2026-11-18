@@ -39,9 +39,14 @@ function clean(d: z.output<typeof orderSchema>) {
     shade: d.shade || null,
     instructions: d.instructions || null,
     due_date: d.due_date || null,
-    cost: d.cost === "" ? null : d.cost,
     notes: d.notes || null,
   };
+}
+
+/** El costo real sólo lo captura y lo ve el administrador (tabla aparte, con RLS). */
+async function saveCost(supabase: Awaited<ReturnType<typeof createClient>>, orderId: string, cost: number | "") {
+  if (cost === "") return supabase.from("lab_order_costs").delete().eq("order_id", orderId);
+  return supabase.from("lab_order_costs").upsert({ order_id: orderId, cost });
 }
 
 export async function createOrder(patientId: string, _prev: Result, formData: FormData): Promise<Result> {
@@ -56,17 +61,22 @@ export async function createOrder(patientId: string, _prev: Result, formData: Fo
     .select("id")
     .single();
   if (error || !data) return { error: "No se pudo crear la orden.", values: raw };
+  if (me.role === "admin" && parsed.data.cost !== "") await saveCost(supabase, data.id, parsed.data.cost);
   revalidatePath("/laboratorio");
   redirect(`/laboratorio/${data.id}`);
 }
 
 export async function updateOrder(id: string, _prev: Result, formData: FormData): Promise<Result> {
-  await requireProfile();
+  const me = await requireProfile();
   const { raw, parsed } = read(formData);
   if (!parsed.success) return { error: "Revisa los datos de la orden.", values: raw };
   const supabase = await createClient();
   const { error, count } = await supabase.from("lab_orders").update(clean(parsed.data), { count: "exact" }).eq("id", id);
   if (error || !count) return { error: "No se pudo guardar.", values: raw };
+  if (me.role === "admin") {
+    const { error: costError } = await saveCost(supabase, id, parsed.data.cost);
+    if (costError) return { error: "Se guardó la orden, pero no el costo.", values: raw };
+  }
   revalidatePath("/laboratorio", "layout");
   return { ok: "Guardado." };
 }

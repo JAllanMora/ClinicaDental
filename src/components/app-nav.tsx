@@ -17,6 +17,7 @@ const ITEMS: Item[] = [
   { href: "/laboratorio", label: "Laboratorio", icon: "M9 3h6M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3M7 15h10" },
   { href: "/inventario", label: "Inventario", icon: "M21 8 12 3 3 8v8l9 5 9-5V8ZM3 8l9 5 9-5M12 13v8" },
   { href: "/caja", label: "Caja", icon: "M3 7a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7ZM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM6 9.5v.01M18 14.5v.01", roles: ["admin", "reception"] },
+  { href: "/finanzas", label: "Finanzas", icon: "M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6", roles: ["admin"] },
   { href: "/comisiones", label: "Comisiones", icon: "M19 5 5 19M7.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM16.5 18a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z", roles: ["admin", "dentist"] },
   { href: "/reportes", label: "Reportes", icon: "M4 20V10M10 20V4M16 20v-7M22 20H2", roles: ["admin"] },
   { href: "/tablet", label: "Modo tablet", icon: "M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM11 18h2" },

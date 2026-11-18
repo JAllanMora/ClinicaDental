@@ -40,10 +40,12 @@ from auth.users u
 where u.email like '%@clinica.local';
 
 update public.profiles set active = true;
-update public.profiles set specialty = 'Odontología general', professional_id = '12345678', color = '#C2187A', commission_pct = 40
+update public.profiles set specialty = 'Odontología general', professional_id = '12345678', color = '#C2187A'
   where email = 'dentista@clinica.local';
-update public.profiles set specialty = 'Endodoncia', professional_id = '87654321', color = '#6366F1', commission_pct = 35
+update public.profiles set specialty = 'Endodoncia', professional_id = '87654321', color = '#6366F1'
   where email = 'dentista2@clinica.local';
+insert into public.commission_rates (dentist_id, pct)
+  select id, case email when 'dentista@clinica.local' then 40 else 35 end from public.profiles where role = 'dentist';
 
 -- Turnos: lunes a viernes 9–14 y 16–20, sábado 9–14.
 insert into public.working_hours (dentist_id, weekday, starts, ends)
@@ -149,12 +151,17 @@ from (values
 cross join (select id from public.branches order by created_at limit 1) b;
 
 with lots as (
-  insert into public.inventory_lots (item_id, lot_code, expires_on, received_qty, remaining, unit_cost, created_by)
+  insert into public.inventory_lots (item_id, lot_code, expires_on, received_qty, remaining, created_by)
   values
-    ('30000000-0000-4000-a000-000000000001', 'GN-2401', public.clinic_day(now()) + 365, 3,   3,   180, '00000000-0000-4000-a000-000000000001'),
-    ('30000000-0000-4000-a000-000000000002', 'LD-0925', public.clinic_day(now()) + 20,  100, 100, 12,  '00000000-0000-4000-a000-000000000001'),
-    ('30000000-0000-4000-a000-000000000003', 'RA2-11',  public.clinic_day(now()) + 300, 6,   6,   420, '00000000-0000-4000-a000-000000000001')
+    ('30000000-0000-4000-a000-000000000001', 'GN-2401', public.clinic_day(now()) + 365, 3,   3,   '00000000-0000-4000-a000-000000000001'),
+    ('30000000-0000-4000-a000-000000000002', 'LD-0925', public.clinic_day(now()) + 20,  100, 100, '00000000-0000-4000-a000-000000000001'),
+    ('30000000-0000-4000-a000-000000000003', 'RA2-11',  public.clinic_day(now()) + 300, 6,   6,   '00000000-0000-4000-a000-000000000001')
   returning id, item_id, received_qty
+), costs as (
+  insert into public.inventory_lot_costs (lot_id, unit_cost)
+  select id, case item_id when '30000000-0000-4000-a000-000000000001' then 180
+                          when '30000000-0000-4000-a000-000000000002' then 12 else 420 end
+  from lots
 )
 insert into public.inventory_movements (item_id, lot_id, kind, quantity, reason, created_by)
 select item_id, id, 'entrada', received_qty, 'Inventario inicial', '00000000-0000-4000-a000-000000000001' from lots;
@@ -162,6 +169,10 @@ select item_id, id, 'entrada', received_qty, 'Inventario inicial', '00000000-000
 insert into public.labs (id, name, contact, phone)
 values ('40000000-0000-4000-a000-000000000001', 'Laboratorio Dental Monterrey', 'Ing. Pedro Saldaña', '8183334455');
 
-insert into public.lab_orders (patient_id, dentist_id, lab_id, work_type, teeth, shade, status, due_date, cost, created_by)
-values ('10000000-0000-4000-a000-000000000005', '00000000-0000-4000-a000-000000000003', '40000000-0000-4000-a000-000000000001',
-        'Prótesis parcial removible', '36, 37', 'A3', 'enviado', public.clinic_day(now()) + 5, 1800, '00000000-0000-4000-a000-000000000003');
+with o as (
+  insert into public.lab_orders (patient_id, dentist_id, lab_id, work_type, teeth, shade, status, due_date, created_by)
+  values ('10000000-0000-4000-a000-000000000005', '00000000-0000-4000-a000-000000000003', '40000000-0000-4000-a000-000000000001',
+          'Prótesis parcial removible', '36, 37', 'A3', 'enviado', public.clinic_day(now()) + 5, '00000000-0000-4000-a000-000000000003')
+  returning id
+)
+insert into public.lab_order_costs (order_id, cost) select id, 1800 from o;

@@ -42,3 +42,19 @@ export const PLAN_ACTION: Partial<Record<PlanStatus, string>> = {
 };
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
+
+export const MONTH_NAMES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+/** "2026-11" ± n meses. */
+export function shiftMonth(month: string, n: number) {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7);
+}
+
+/** "noviembre 2026" */
+export function monthLabel(month: string) {
+  const [y, m] = month.split("-").map(Number);
+  return `${MONTH_NAMES[m - 1]} ${y}`;
+}
+
+export const isMonth = (v: unknown): v is string => typeof v === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(v);

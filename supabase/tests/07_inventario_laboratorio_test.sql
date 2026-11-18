@@ -30,8 +30,8 @@ select pg_temp.login('admin@clinica.mx');
 insert into labs (name, phone) values ('Laboratorio Dental Hidalgo', '771 000 0000');
 select pg_temp.logout();
 select pg_temp.login('dra.lopez@clinica.mx');
-insert into lab_orders (patient_id, dentist_id, lab_id, work_type, teeth, shade, due_date, cost)
-  select (select id from patients where last_name = 'Pérez'), auth.uid(), (select id from labs limit 1), 'Corona de zirconia', '16', 'A2', current_date + 7, 1800;
+insert into lab_orders (patient_id, dentist_id, lab_id, work_type, teeth, shade, due_date)
+  select (select id from patients where last_name = 'Pérez'), auth.uid(), (select id from labs limit 1), 'Corona de zirconia', '16', 'A2', current_date + 7;
 select pg_temp.expect_error($$insert into lab_orders (patient_id, dentist_id, work_type) select id, auth.uid(), 'x' from ajeno$$, 'odontóloga no pide trabajos de pacientes ajenos');
 update lab_orders set status = 'enviado';
 select pg_temp.assert((select sent_at is not null from lab_orders limit 1), 'envío registra fecha');

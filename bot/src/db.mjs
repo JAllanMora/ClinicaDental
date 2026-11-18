@@ -41,8 +41,20 @@ export function createDb({ url, serviceKey, humanPauseHours = 4 }) {
       );
     },
 
-    async slots(duration, from, to, preferDentist = null) {
-      return must(await sb.rpc("available_slots", { p_duration: duration, p_from: from, p_to: to, p_prefer: preferDentist }));
+    /** Horarios libres. `type` limita a los doctores de ese tipo de cita; `dentist` a uno solo. */
+    async slots(duration, from, to, { prefer = null, dentist = null, type = null } = {}) {
+      return must(
+        await sb.rpc("available_slots", { p_duration: duration, p_from: from, p_to: to, p_prefer: prefer, p_dentist: dentist, p_type: type }),
+      );
+    },
+
+    /** Doctores que atienden un tipo de cita (los marcados en Configuración, o todos los que tienen horario). */
+    async dentistsFor(typeId) {
+      const assigned = must(await sb.from("appointment_type_dentists").select("dentist_id").eq("type_id", typeId)).map((r) => r.dentist_id);
+      const withHours = [...new Set(must(await sb.from("working_hours").select("dentist_id")).map((r) => r.dentist_id))];
+      const ids = assigned.length ? assigned.filter((id) => withHours.includes(id)) : withHours;
+      if (!ids.length) return [];
+      return must(await sb.from("profiles").select("id, full_name").in("id", ids).eq("role", "dentist").eq("active", true).order("full_name"));
     },
 
     /** Crea la cita. Regresa null si alguien ganó el horario mientras el paciente elegía. */

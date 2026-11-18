@@ -64,6 +64,7 @@ function splitName(full) {
 }
 
 const title = (s) => s.replace(/(^|\s)(\p{L})/gu, (m, sp, c) => sp + c.toUpperCase());
+const capital = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function createFlow(db, { now = () => new Date() } = {}) {
   /** phone → { step, data, at } */
@@ -90,18 +91,49 @@ export function createFlow(db, { now = () => new Date() } = {}) {
       set(phone, "menu", {});
       return [`No encontré horarios libres en los próximos ${settings.days_ahead} días. Escribe 3 para que recepción te ayude.`];
     }
-    const slots = await db.slots(ctx.type.duration_minutes, start, end, ctx.preferDentist ?? null);
+    const slots = await db.slots(ctx.type.duration_minutes, start, end, {
+      prefer: ctx.preferDentist ?? null,
+      dentist: ctx.dentist?.id ?? null,
+      type: ctx.type.id,
+    });
     const options = pickOptions(slots);
     if (!options.length) {
+      if (ctx.dentist && ctx.dentists?.length > 1) {
+        const others = await askDentist(phone, { ...ctx, dentist: null }, ctx.dentists);
+        return [`No encontré horarios libres con ${ctx.dentist.full_name} en los próximos ${settings.days_ahead} días.`, ...others];
+      }
       set(phone, "menu", {});
       return [`No encontré horarios libres en los próximos ${settings.days_ahead} días para ${ctx.type.name.toLowerCase()}. Escribe 3 para que recepción te ayude.`];
     }
     set(phone, "pick_slot", { ...ctx, options, next: nextDayStart(options.at(-1).starts_at) });
     const lines = options.map((s, i) => {
       const { day, minutes } = clinicParts(s.starts_at);
-      return `${i + 1}. ${title(dayLabel(day))}, ${timeLabel(minutes)} con ${s.dentist_name}`;
+      return `${i + 1}. ${capital(dayLabel(day))}, ${timeLabel(minutes)}${ctx.dentist ? "" : ` con ${s.dentist_name}`}`;
     });
-    return [[`Estos son los próximos horarios para ${ctx.type.name.toLowerCase()}:`, ...lines, "0. Ver más fechas"].join("\n")];
+    const withWhom = ctx.dentist ? ` con ${ctx.dentist.full_name}` : "";
+    return [[`Estos son los próximos horarios para ${ctx.type.name.toLowerCase()}${withWhom}:`, ...lines, "0. Ver más fechas"].join("\n")];
+  }
+
+  /** Después de elegir el tipo: si hay varios doctores y está activado, pregunta con quién. */
+  async function chooseDentist(phone, ctx) {
+    const settings = await db.settings();
+    if (!settings.ask_dentist) return offerSlots(phone, ctx);
+    const dentists = await db.dentistsFor(ctx.type.id);
+    if (dentists.length < 2) return offerSlots(phone, { ...ctx, dentist: null });
+    // El doctor de cabecera del paciente va primero.
+    const sorted = [...dentists].sort((a, b) => (b.id === ctx.preferDentist) - (a.id === ctx.preferDentist));
+    return askDentist(phone, ctx, sorted);
+  }
+
+  function askDentist(phone, ctx, dentists) {
+    set(phone, "pick_dentist", { ...ctx, dentists });
+    return [
+      [
+        `¿Con qué doctor quieres tu cita de ${ctx.type.name.toLowerCase()}?`,
+        ...dentists.map((d, i) => `${i + 1}. ${d.full_name}`),
+        `${dentists.length + 1}. Con el primero disponible`,
+      ].join("\n"),
+    ];
   }
 
   async function startBooking(phone, patient, extra = {}) {
@@ -115,12 +147,12 @@ export function createFlow(db, { now = () => new Date() } = {}) {
       set(phone, "ask_name", ctx);
       return ["Con gusto. ¿A nombre de quién es la cita? Escribe nombre y apellido."];
     }
-    if (extra.type) return offerSlots(phone, ctx);
+    if (extra.type) return chooseDentist(phone, ctx);
     return askType(phone, ctx, settings.types);
   }
 
   function askType(phone, ctx, types) {
-    if (types.length === 1) return offerSlots(phone, { ...ctx, type: types[0] });
+    if (types.length === 1) return chooseDentist(phone, { ...ctx, type: types[0] });
     set(phone, "pick_type", { ...ctx, types });
     return [["¿Qué tipo de cita necesitas?", ...types.map((t, i) => `${i + 1}. ${t.name}`)].join("\n")];
   }
@@ -137,7 +169,7 @@ export function createFlow(db, { now = () => new Date() } = {}) {
     }
     if (appts.length === 1) return apptActions(phone, patient, appts[0]);
     set(phone, "pick_appt", { patientId: patient.id, appts });
-    const lines = appts.map((a, i) => `${i + 1}. ${title(whenLabel(a.starts_at))} con ${a.dentist?.full_name ?? "tu odontólogo"}`);
+    const lines = appts.map((a, i) => `${i + 1}. ${capital(whenLabel(a.starts_at))} con ${a.dentist?.full_name ?? "tu odontólogo"}`);
     return [["Tus próximas citas. ¿Cuál quieres ver?", ...lines].join("\n")];
   }
 
@@ -235,7 +267,14 @@ export function createFlow(db, { now = () => new Date() } = {}) {
       case "pick_type": {
         const type = n ? data.types[n - 1] : null;
         if (!type) return [`Responde con un número del 1 al ${data.types.length}.`];
-        return offerSlots(phone, { ...data, type, types: undefined });
+        return chooseDentist(phone, { ...data, type, types: undefined });
+      }
+
+      case "pick_dentist": {
+        const any = n === data.dentists.length + 1;
+        const dentist = n && !any ? data.dentists[n - 1] : null;
+        if (!dentist && !any) return [`Responde con un número del 1 al ${data.dentists.length + 1}.`];
+        return offerSlots(phone, { ...data, dentist });
       }
 
       case "pick_slot": {

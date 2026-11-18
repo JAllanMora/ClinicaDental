@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Card, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -9,12 +10,15 @@ export const metadata: Metadata = { title: "Configuración" };
 export default async function SettingsPage() {
   const me = await requireProfile(["admin"]);
   const supabase = await createClient();
-  const [{ data: staff }, { data: branches }, { data: types }, { data: treatments }] = await Promise.all([
+  const [{ data: staff }, { data: branches }, { data: types }, { data: treatments }, { data: typeDentists }] = await Promise.all([
     supabase.from("profiles").select("*").order("active", { ascending: false }).order("full_name"),
     supabase.from("branches").select("*, chairs(*)").order("name"),
     supabase.from("appointment_types").select("*").order("active", { ascending: false }).order("name"),
     supabase.from("treatments").select("*").order("active", { ascending: false }).order("category").order("name"),
+    supabase.from("appointment_type_dentists").select("type_id, dentist_id"),
   ]);
+  const dentists = (staff ?? []).filter((p) => p.role === "dentist" && p.active).map((p) => ({ id: p.id, full_name: p.full_name }));
+  const assignedTo = (typeId: string) => (typeDentists ?? []).filter((x) => x.type_id === typeId).map((x) => x.dentist_id);
   const categories = [...new Set((treatments ?? []).map((t) => t.category))];
 
   return (
@@ -63,18 +67,24 @@ export default async function SettingsPage() {
 
         <Card>
           <h2 className="font-semibold text-brand-900">Tipos de cita</h2>
-          <p className="mb-3 mt-1 text-sm text-brand-700/80">La duración se usa como sugerencia al agendar; el color identifica la cita en la agenda.</p>
+          <p className="mb-3 mt-1 text-sm text-brand-700/80">
+            La duración se usa como sugerencia al agendar; el color identifica la cita en la agenda. Marca qué doctores atienden cada
+            tipo: el bot de WhatsApp sólo ofrecerá horarios con ellos.
+          </p>
           <div className="divide-y divide-brand-50">
-            {types?.map((t) => <AppointmentTypeRow key={t.id} type={t} />)}
-            <AppointmentTypeRow />
+            {types?.map((t) => <AppointmentTypeRow key={t.id} type={t} dentists={dentists} assigned={assignedTo(t.id)} />)}
+            <AppointmentTypeRow dentists={dentists} />
           </div>
         </Card>
 
         <Card>
           <h2 className="font-semibold text-brand-900">Aranceles (lista de precios)</h2>
           <p className="mb-3 mt-1 text-sm text-brand-700/80">
-            Precios en MXN que se proponen al armar un presupuesto. La comisión especial reemplaza a la del odontólogo para ese
-            tratamiento (déjala vacía para usar la general).
+            Precios en MXN que se proponen al armar un presupuesto. Las comisiones de cada odontólogo se definen en{" "}
+            <Link href="/comisiones" className="underline">
+              Comisiones
+            </Link>
+            .
           </p>
           <div className="divide-y divide-brand-50">
             <TreatmentRow categories={categories} />

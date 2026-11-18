@@ -48,7 +48,6 @@ export type Profile = {
   color: string;
   branch_id: string | null;
   active: boolean;
-  commission_pct: number;
 } & Timestamps;
 
 export type Patient = {
@@ -311,6 +310,7 @@ export type WhatsappSettings = {
   min_notice_minutes: number;
   welcome_message: string;
   handoff_message: string;
+  ask_dentist: boolean;
   updated_at: string;
 };
 
@@ -374,7 +374,6 @@ export type Treatment = {
   name: string;
   category: string;
   price: number;
-  commission_pct: number | null;
   active: boolean;
 } & Timestamps;
 
@@ -476,7 +475,6 @@ export type InventoryLot = {
   expires_on: string | null;
   received_qty: number;
   remaining: number;
-  unit_cost: number | null;
   received_at: string;
   created_by: string | null;
 };
@@ -513,7 +511,6 @@ export type LabOrder = {
   sent_at: string | null;
   received_at: string | null;
   delivered_at: string | null;
-  cost: number | null;
   notes: string | null;
   created_by: string | null;
 } & Timestamps;
@@ -543,6 +540,71 @@ export type PatientQuestionnaire = {
   submitted_at: string;
   reviewed_by: string | null;
   reviewed_at: string | null;
+};
+
+export type AppointmentTypeDentist = { type_id: string; dentist_id: string; created_at: string };
+
+export type CommissionRate = {
+  id: string;
+  dentist_id: string | null;
+  treatment_id: string | null;
+  pct: number;
+  updated_at: string;
+};
+
+export type LabOrderCost = { order_id: string; cost: number; updated_at: string };
+export type InventoryLotCost = { lot_id: string; unit_cost: number; updated_at: string };
+
+export const EXPENSE_CATEGORIES = {
+  renta: "Renta",
+  servicios: "Servicios (luz, agua, internet, teléfono)",
+  nomina: "Nómina y honorarios",
+  insumos: "Insumos y material",
+  laboratorio: "Laboratorio",
+  mantenimiento: "Mantenimiento y equipo",
+  publicidad: "Publicidad",
+  impuestos: "Impuestos y contador",
+  otros: "Otros",
+} as const;
+export type ExpenseCategory = keyof typeof EXPENSE_CATEGORIES;
+
+export type RecurringExpense = {
+  id: string;
+  category: ExpenseCategory;
+  concept: string;
+  amount: number;
+  day_of_month: number;
+  active: boolean;
+} & Timestamps;
+
+export type Expense = {
+  id: string;
+  spent_on: string;
+  category: ExpenseCategory;
+  concept: string;
+  amount: number;
+  method: PaymentMethod;
+  supplier: string | null;
+  notes: string | null;
+  recurring_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  voided: boolean;
+  void_reason: string | null;
+};
+
+export type CommissionReportRow = {
+  item_id: string;
+  dentist_id: string;
+  completed_at: string;
+  patient_id: string;
+  patient_name: string;
+  description: string;
+  tooth: string | null;
+  line_total: number;
+  lab_cost: number | null;
+  pct: number | null;
+  commission: number;
 };
 
 type Fk<T extends string, C extends string, R extends string> = {
@@ -582,7 +644,7 @@ export type Database = {
         Profile,
         Optional<
           Profile,
-          "full_name" | "email" | "role" | "specialty" | "professional_id" | "phone" | "color" | "branch_id" | "active" | "created_at" | "updated_at" | "commission_pct"
+          "full_name" | "email" | "role" | "specialty" | "professional_id" | "phone" | "color" | "branch_id" | "active" | "created_at" | "updated_at"
         >,
         [{ foreignKeyName: "profiles_branch_id_fkey"; columns: ["branch_id"]; isOneToOne: false; referencedRelation: "branches"; referencedColumns: ["id"] }]
       >;
@@ -779,6 +841,24 @@ export type Database = {
         Partial<PatientQuestionnaire> & Pick<PatientQuestionnaire, "patient_id" | "answers" | "signer_name" | "signature">,
         [PatientFk<"patient_questionnaires">, Fk<"patient_questionnaires", "submitted_by", "profiles">]
       >;
+      appointment_type_dentists: TableDef<
+        AppointmentTypeDentist,
+        Pick<AppointmentTypeDentist, "type_id" | "dentist_id">,
+        [Fk<"appointment_type_dentists", "type_id", "appointment_types">, Fk<"appointment_type_dentists", "dentist_id", "profiles">]
+      >;
+      commission_rates: TableDef<
+        CommissionRate,
+        Optional<CommissionRate, "id" | "dentist_id" | "treatment_id" | "updated_at">,
+        [Fk<"commission_rates", "dentist_id", "profiles">, Fk<"commission_rates", "treatment_id", "treatments">]
+      >;
+      lab_order_costs: TableDef<LabOrderCost, Pick<LabOrderCost, "order_id" | "cost">, [Fk<"lab_order_costs", "order_id", "lab_orders">]>;
+      inventory_lot_costs: TableDef<InventoryLotCost, Pick<InventoryLotCost, "lot_id" | "unit_cost">, [Fk<"inventory_lot_costs", "lot_id", "inventory_lots">]>;
+      recurring_expenses: TableDef<RecurringExpense, Optional<RecurringExpense, "id" | "day_of_month" | "active" | "created_at" | "updated_at">>;
+      expenses: TableDef<
+        Expense,
+        Partial<Expense> & Pick<Expense, "category" | "concept" | "amount">,
+        [Fk<"expenses", "created_by", "profiles">, Fk<"expenses", "recurring_id", "recurring_expenses">]
+      >;
       consent_templates: TableDef<ConsentTemplate, Partial<ConsentTemplate> & Pick<ConsentTemplate, "title" | "body">>;
       consents: TableDef<
         Consent,
@@ -812,10 +892,12 @@ export type Database = {
       };
       respond_appointment: { Args: { p_token: string; p_response: "confirmada" | "cambio" }; Returns: boolean };
       available_slots: {
-        Args: { p_duration: number; p_from: string; p_to: string; p_dentist?: string | null; p_prefer?: string | null };
+        Args: { p_duration: number; p_from: string; p_to: string; p_dentist?: string | null; p_prefer?: string | null; p_type?: string | null };
         Returns: AvailableSlot[];
       };
       set_working_hours: { Args: { p_dentist: string; p_shifts: Json }; Returns: undefined };
+      commission_report: { Args: { p_from: string; p_to: string }; Returns: CommissionReportRow[] };
+      apply_recurring_expenses: { Args: { p_month: string }; Returns: number };
     };
     Enums: { app_role: AppRole; sex: Sex; finding_layer: FindingLayer; tooth_surface: ToothSurface; file_kind: FileKind; appointment_status: AppointmentStatus; contact_channel: ContactChannel; notification_status: NotificationStatus; plan_status: PlanStatus; plan_item_status: PlanItemStatus; payment_method: PaymentMethod; inventory_move: InventoryMove; lab_status: LabStatus };
     CompositeTypes: { [_ in never]: never };

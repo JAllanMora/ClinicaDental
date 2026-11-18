@@ -13,8 +13,10 @@ export function clinicParts(iso) {
   };
 }
 
+/** "9:00 a. m." · "4:30 p. m." · "12:00 p. m." */
 export function timeLabel(minutes) {
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  const h = Math.floor(minutes / 60);
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(minutes % 60).padStart(2, "0")} ${h < 12 ? "a. m." : "p. m."}`;
 }
 
 /** "jueves 20 de noviembre" */
@@ -24,7 +26,7 @@ export function dayLabel(day) {
   return `${DAY_NAMES[wd]} ${d} de ${MONTH_NAMES[m - 1]}`;
 }
 
-/** "jueves 20 de noviembre a las 10:00" */
+/** "jueves 20 de noviembre a las 10:00 a. m." */
 export function whenLabel(iso) {
   const { day, minutes } = clinicParts(iso);
   return `${dayLabel(day)} a las ${timeLabel(minutes)}`;

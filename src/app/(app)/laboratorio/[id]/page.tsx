@@ -20,7 +20,8 @@ export default async function LabOrderPage({ params }: PageProps<"/laboratorio/[
     .eq("id", id)
     .maybeSingle();
   if (!order) notFound();
-  const [{ data: events }, { data: dentists }, { data: labs }, { data: items }] = await Promise.all([
+  const isAdmin = profile.role === "admin";
+  const [{ data: events }, { data: dentists }, { data: labs }, { data: items }, { data: costRow }] = await Promise.all([
     supabase.from("lab_order_events").select("*, author:profiles!lab_order_events_created_by_fkey(full_name)").eq("order_id", id).order("created_at"),
     supabase.from("profiles").select("id, full_name").eq("role", "dentist").order("full_name"),
     supabase.from("labs").select("id, name").order("name"),
@@ -29,7 +30,9 @@ export default async function LabOrderPage({ params }: PageProps<"/laboratorio/[
       .select("id, description, tooth, line_total, plan:treatment_plans!inner(patient_id, folio)")
       .eq("plan.patient_id", order.patient_id)
       .neq("status", "cancelado"),
+    isAdmin ? supabase.from("lab_order_costs").select("cost").eq("order_id", id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
+  const cost = costRow?.cost ?? null;
   const canEdit = profile.role !== "dentist" || order.dentist_id === profile.id;
 
   return (
@@ -45,7 +48,7 @@ export default async function LabOrderPage({ params }: PageProps<"/laboratorio/[
       />
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Badge tone={LAB_STATUS[order.status].tone}>{LAB_STATUS[order.status].label}</Badge>
-        {order.cost !== null && <span className="text-sm text-brand-700">Costo {money(order.cost)}</span>}
+        {isAdmin && cost !== null && <span className="text-sm text-brand-700">Costo {money(cost)}</span>}
         {canEdit && <StatusButtons id={order.id} status={order.status} />}
       </div>
       <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
@@ -61,6 +64,7 @@ export default async function LabOrderPage({ params }: PageProps<"/laboratorio/[
               }))}
               lockDentist={profile.role === "dentist"}
               defaultDentist={order.dentist_id}
+              cost={isAdmin ? cost : undefined}
             />
           ) : (
             <p className="text-sm text-brand-700">{order.instructions ?? "Sin indicaciones."}</p>

@@ -66,6 +66,7 @@ export default async function NewLabOrderPage({ searchParams }: PageProps<"/labo
               }))}
               lockDentist={profile.role === "dentist"}
               defaultDentist={profile.role === "dentist" ? profile.id : (patient.primary_dentist_id ?? dentists?.[0]?.id ?? "")}
+              cost={profile.role === "admin" ? null : undefined}
             />
           </>
         )}

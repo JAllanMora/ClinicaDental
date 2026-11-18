@@ -56,7 +56,7 @@ export function StaffRow({ person, isMe }: { person: Profile; isMe: boolean }) {
   return (
     // Remontar al guardar: React no restaura los <select> al reiniciar el formulario.
     <form key={person.updated_at} action={action} className="space-y-3 py-4">
-      <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr_1fr_5rem_auto_auto] md:items-end">
+      <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr_1fr_auto_auto] md:items-end">
         <Field label={person.email ?? "Nombre"}>
           <input name="full_name" defaultValue={person.full_name} required className="field" />
         </Field>
@@ -75,9 +75,6 @@ export function StaffRow({ person, isMe }: { person: Profile; isMe: boolean }) {
         </Field>
         <Field label="Cédula profesional">
           <input name="professional_id" defaultValue={person.professional_id ?? ""} className="field" />
-        </Field>
-        <Field label="Comisión %">
-          <input name="commission_pct" type="number" min={0} max={100} step={0.5} defaultValue={person.commission_pct} className="field" />
         </Field>
         <div className="flex items-end gap-3 pb-1">
           <label className="flex flex-col items-center text-xs text-brand-800">
@@ -152,13 +149,21 @@ export function ChairToggle({ id, name, active }: { id: string; name: string; ac
   );
 }
 
-export function AppointmentTypeRow({ type }: { type?: AppointmentType }) {
+export function AppointmentTypeRow({
+  type,
+  dentists,
+  assigned = [],
+}: {
+  type?: AppointmentType;
+  dentists: { id: string; full_name: string }[];
+  assigned?: string[];
+}) {
   const [state, action, pending] = useActionState<ActionState, FormData>(saveAppointmentType.bind(null, type?.id ?? null), {});
   return (
     <form
       key={type?.updated_at}
       action={action}
-      className="grid items-center gap-2 py-2 sm:grid-cols-[2.5rem_1fr_7rem_6rem_auto]"
+      className="grid items-center gap-2 py-3 sm:grid-cols-[2.5rem_1fr_7rem_6rem_auto]"
     >
       <input type="color" name="color" defaultValue={type?.color ?? "#A0449A"} aria-label="Color" className="h-9 w-10 cursor-pointer rounded border border-brand-200" />
       <input name="name" required defaultValue={type?.name} placeholder={type ? undefined : "Nuevo tipo de cita"} aria-label="Nombre" className="field" />
@@ -180,6 +185,18 @@ export function AppointmentTypeRow({ type }: { type?: AppointmentType }) {
         {state.error && <span className="text-sm text-red-700">{state.error}</span>}
         {state.ok && <span className="text-sm text-emerald-700">{state.ok}</span>}
       </div>
+      {dentists.length > 0 && (
+        <fieldset className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-brand-800 sm:col-start-2 sm:col-end-6">
+          <legend className="sr-only">Doctores que lo atienden</legend>
+          <span className="text-xs text-brand-700/70">Lo atienden:</span>
+          {dentists.map((d) => (
+            <label key={d.id} className="flex items-center gap-1.5">
+              <input type="checkbox" name="dentist_ids" value={d.id} defaultChecked={assigned.includes(d.id)} /> {d.full_name}
+            </label>
+          ))}
+          <span className="text-xs text-brand-700/60">{assigned.length ? "" : "(ninguno marcado = cualquier doctor)"}</span>
+        </fieldset>
+      )}
     </form>
   );
 }
@@ -188,11 +205,10 @@ export function TreatmentRow({ treatment, categories }: { treatment?: Treatment;
   const [state, action, pending] = useActionState<ActionState, FormData>(saveTreatment.bind(null, treatment?.id ?? null), {});
   const t = treatment;
   return (
-    <form key={t?.updated_at} action={action} className="grid items-center gap-2 py-2 sm:grid-cols-[1fr_10rem_7rem_6rem_5rem_auto]">
+    <form key={t?.updated_at} action={action} className="grid items-center gap-2 py-2 sm:grid-cols-[1fr_10rem_7rem_6rem_auto]">
       <input name="name" required defaultValue={t?.name} placeholder={t ? undefined : "Nuevo tratamiento"} aria-label="Tratamiento" className="field" />
       <input name="category" required defaultValue={t?.category ?? ""} list="treatment-categories" placeholder="Categoría" aria-label="Categoría" className="field" />
       <input name="price" type="number" min={0} step="0.01" required defaultValue={t?.price} placeholder="Precio" aria-label="Precio" className="field" />
-      <input name="commission_pct" type="number" min={0} max={100} step={0.5} defaultValue={t?.commission_pct ?? ""} placeholder="Com. %" title="Comisión especial (vacío = la del odontólogo)" aria-label="Comisión %" className="field" />
       {t ? (
         <label className="flex items-center gap-1.5 text-sm text-brand-700">
           <input type="checkbox" name="active" defaultChecked={t.active} /> Activo

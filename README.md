@@ -17,6 +17,7 @@ y desplegado en **Vercel**.
 | 7 | Inventario por lotes con caducidades y alertas; órdenes de laboratorio | ✅ |
 | 8 | Reportes, métricas y modo tablet para pacientes | ✅ |
 | 9 | Horarios por odontólogo y días libres; bot de WhatsApp que agenda, confirma y recuerda | ✅ |
+| 10 | Doctores por tipo de cita (el bot deja elegir doctor); costos y comisiones sólo para el admin; finanzas con gastos y estado de resultados | ✅ |
 
 ## Modo tablet
 
@@ -51,6 +52,12 @@ La seguridad vive en la base de datos (Row Level Security), no sólo en la inter
   admite cobros, egresos ni cancelaciones. Los precios de tratamientos ya realizados no se pueden cambiar.
 - Recepción cobra y hace el corte; el odontólogo marca tratamientos realizados (base de su comisión) y ve
   los pagos de sus pacientes, pero no la caja.
+- **Costos y comisiones son sólo del administrador**: el costo de laboratorio, el costo de cada lote de inventario y las
+  reglas de comisión (por odontólogo, por tratamiento o ambos) viven en tablas que sólo el admin puede leer. El
+  odontólogo ve en *Comisiones* sus tratamientos y lo que le corresponde, sin costos ni porcentajes.
+- **Finanzas** (admin): gastos de operación por categoría (renta, servicios, nómina…), gastos fijos mensuales que se
+  registran con un clic y estado de resultados del mes (ingresos − comisiones − laboratorio − compras de inventario −
+  gastos). Los gastos no se borran ni se editan: se anulan con motivo.
 - Cifrado en tránsito (HTTPS en Vercel/Supabase) y en reposo (Supabase cifra la base y el storage con AES-256).
 
 ## Puesta en marcha
@@ -150,7 +157,9 @@ Otros comandos: `npm run lint`, `npm run typecheck`, `npm run build`.
 
 El bot vive en `bot/` y corre en una computadora de la clínica (no en Vercel). Instrucciones en
 [bot/README.md](bot/README.md). Los turnos de cada odontólogo y sus días libres se editan en
-*Agenda → Horarios*; el bot sólo ofrece horarios dentro de ellos.
+*Agenda → Horarios*; el bot sólo ofrece horarios dentro de ellos. En *Configuración → Tipos de cita* se marca qué
+odontólogos atienden cada tipo; si hay más de uno, el bot pregunta con quién (se puede apagar en *WhatsApp →
+Configuración del bot*).
 
 Si la app está en Vercel y el bot en la clínica, pon `WHATSAPP_PROVIDER=baileys` en Vercel: el cron diario deja
 los recordatorios de WhatsApp en cola y el bot los manda.
@@ -162,7 +171,7 @@ Importa el repositorio en Vercel, agrega las variables de entorno y despliega. N
 ## Pruebas de base de datos
 
 `npm run test:db` aplica todas las migraciones en un Postgres desechable y verifica las reglas de
-acceso (26 escenarios: recepción no ve datos clínicos, un odontólogo no ve pacientes ajenos, la bitácora
+acceso (escenarios como: recepción no ve datos clínicos, un odontólogo no ve pacientes ajenos, la bitácora
 es inmutable, etc.). Necesita `psql` y las variables `PGHOST`/`PGUSER`/`PGPASSWORD`. Corre en CI en cada PR.
 
 ## Estructura
