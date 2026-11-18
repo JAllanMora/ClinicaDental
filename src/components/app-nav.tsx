@@ -13,6 +13,7 @@ const ITEMS: Item[] = [
   { href: "/", label: "Inicio", icon: "M3 11.5 12 4l9 7.5M5 10v10h5v-6h4v6h5V10" },
   { href: "/pacientes", label: "Pacientes", icon: "M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM21 19v-1a4 4 0 0 0-3-3.9M15.5 3.1a3.5 3.5 0 0 1 0 6.8" },
   { href: "/agenda", label: "Agenda", icon: "M8 3v3M16 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"},
+  { href: "/whatsapp", label: "WhatsApp", icon: "M3.5 20.5 5 16a8.5 8.5 0 1 1 3.2 3.1L3.5 20.5ZM9 9.5c0 3 2.5 5.5 5.5 5.5l1.2-1.4-2-1-1 .8a4 4 0 0 1-2.1-2.1l.8-1-1-2L9 9.5Z", roles: ["admin", "reception"] },
   { href: "/laboratorio", label: "Laboratorio", icon: "M9 3h6M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3M7 15h10" },
   { href: "/inventario", label: "Inventario", icon: "M21 8 12 3 3 8v8l9 5 9-5V8ZM3 8l9 5 9-5M12 13v8" },
   { href: "/caja", label: "Caja", icon: "M3 7a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7ZM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM6 9.5v.01M18 14.5v.01", roles: ["admin", "reception"] },

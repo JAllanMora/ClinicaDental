@@ -470,6 +470,11 @@ function DayColumn({
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: STATUS[a.status].dot }} />
               <span className="truncate font-semibold text-brand-950">{name}</span>
+              {a.booked_via === "whatsapp" && (
+                <span className="shrink-0 rounded bg-emerald-100 px-1 text-[10px] font-semibold text-emerald-800" title="Agendada por el paciente en WhatsApp">
+                  WA
+                </span>
+              )}
               {a.patient_response === "cambio" && (
                 <span className="ml-auto shrink-0 rounded bg-red-100 px-1 text-[10px] font-semibold text-red-700">Pidió cambio</span>
               )}
@@ -764,6 +769,7 @@ function AppointmentPanel({
           <Info label="Sillón" value={chair?.name ?? "—"} />
           <Info label="Tipo" value={type?.name ?? "—"} />
           <Info label="Motivo" value={appt.reason ?? "—"} />
+          {appt.booked_via === "whatsapp" && <Info label="Origen" value="Agendada por el paciente en WhatsApp" />}
         </dl>
         {appt.patient_response === "cambio" && (
           <Alert>El paciente pidió cambiar esta cita desde el enlace del recordatorio. Llámale para reprogramar.</Alert>

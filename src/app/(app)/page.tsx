@@ -46,7 +46,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const pendingToday = (today ?? []).filter((a) => a.status !== "completada").length;
 
   // Pendientes que conviene atender hoy.
-  const [stock, { count: lateLabs }, { count: changeRequests }] = await Promise.all([
+  const [stock, { count: lateLabs }, { count: changeRequests }, { data: waChats }] = await Promise.all([
     stockRows(supabase),
     supabase.from("lab_orders").select("id", { count: "exact", head: true }).in("status", LAB_PENDING).lt("due_date", todayStr()),
     supabase
@@ -56,8 +56,12 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
       .eq("status", "programada")
       .gte("starts_at", todayStart)
       .lt("starts_at", dayRange(addDays(todayStr(), 14))[0]),
+    profile.role === "dentist"
+      ? Promise.resolve({ data: [] as { phone: string }[] })
+      : supabase.from("whatsapp_messages").select("phone").eq("needs_attention", true).is("attended_at", null),
   ]);
   const tasks = [
+    { n: new Set((waChats ?? []).map((m) => m.phone)).size, label: "chats de WhatsApp esperan a recepción", href: "/whatsapp" },
     { n: changeRequests ?? 0, label: "pacientes pidieron cambiar su cita", href: "/agenda/recordatorios" },
     { n: lateLabs ?? 0, label: "trabajos de laboratorio atrasados", href: "/laboratorio" },
     { n: stock.filter((r) => r.low || r.expiring).length, label: "artículos con alerta de inventario", href: "/inventario?vista=alertas" },

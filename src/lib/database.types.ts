@@ -250,6 +250,7 @@ export type Appointment = {
   reminder_sent_at: string | null;
   patient_response: "confirmada" | "cambio" | null;
   patient_responded_at: string | null;
+  booked_via: "sistema" | "whatsapp";
 } & Timestamps;
 
 export type ScheduleBlock = {
@@ -292,6 +293,40 @@ export type ReminderSettings = {
   email_template: string;
   updated_at: string;
 };
+
+export type WhatsappSettings = {
+  id: boolean;
+  enabled: boolean;
+  bookable_type_ids: string[];
+  days_ahead: number;
+  min_notice_minutes: number;
+  welcome_message: string;
+  handoff_message: string;
+  updated_at: string;
+};
+
+export type WhatsappStatus = {
+  id: boolean;
+  state: "desconectado" | "esperando_qr" | "conectado";
+  qr: string | null;
+  phone: string | null;
+  last_seen: string | null;
+  updated_at: string;
+};
+
+export type WhatsappMessage = {
+  id: string;
+  phone: string;
+  patient_id: string | null;
+  direction: "entrante" | "saliente";
+  body: string;
+  needs_attention: boolean;
+  attended_by: string | null;
+  attended_at: string | null;
+  created_at: string;
+};
+
+export type AvailableSlot = { starts_at: string; ends_at: string; dentist_id: string; dentist_name: string; chair_id: string };
 
 export type Notification = {
   id: string;
@@ -645,6 +680,13 @@ export type Database = {
         ]
       >;
       reminder_settings: TableDef<ReminderSettings, Partial<ReminderSettings>>;
+      whatsapp_settings: TableDef<WhatsappSettings, Partial<WhatsappSettings>>;
+      whatsapp_status: TableDef<WhatsappStatus, Partial<WhatsappStatus>>;
+      whatsapp_messages: TableDef<
+        WhatsappMessage,
+        Partial<WhatsappMessage> & Pick<WhatsappMessage, "phone" | "direction" | "body">,
+        [PatientFk<"whatsapp_messages">, Fk<"whatsapp_messages", "attended_by", "profiles">]
+      >;
       notifications: TableDef<
         Notification,
         Partial<Notification> & Pick<Notification, "patient_id" | "channel" | "recipient" | "body">,
@@ -755,6 +797,10 @@ export type Database = {
         Returns: undefined;
       };
       respond_appointment: { Args: { p_token: string; p_response: "confirmada" | "cambio" }; Returns: boolean };
+      available_slots: {
+        Args: { p_duration: number; p_from: string; p_to: string; p_dentist?: string | null; p_prefer?: string | null };
+        Returns: AvailableSlot[];
+      };
     };
     Enums: { app_role: AppRole; sex: Sex; finding_layer: FindingLayer; tooth_surface: ToothSurface; file_kind: FileKind; appointment_status: AppointmentStatus; contact_channel: ContactChannel; notification_status: NotificationStatus; plan_status: PlanStatus; plan_item_status: PlanItemStatus; payment_method: PaymentMethod; inventory_move: InventoryMove; lab_status: LabStatus };
     CompositeTypes: { [_ in never]: never };

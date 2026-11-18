@@ -6,7 +6,7 @@ import { requireProfile } from "@/lib/auth";
 import { REMINDER_SELECT, getReminderSettings, pendingReminders, sendReminder } from "@/lib/notify";
 import { createClient } from "@/lib/supabase/server";
 
-const LABEL = { enviado: "Enviado", simulado: "Registrado (sin proveedor configurado)", fallido: "Falló el envío", pendiente: "Pendiente", sin_contacto: "El paciente no tiene teléfono ni correo, o pidió no recibir mensajes" };
+const LABEL = { enviado: "Enviado", simulado: "Registrado (sin proveedor configurado)", fallido: "Falló el envío", pendiente: "En cola del bot de WhatsApp", sin_contacto: "El paciente no tiene teléfono ni correo, o pidió no recibir mensajes" };
 
 export async function sendAppointmentReminder(id: string, channel?: "whatsapp" | "sms" | "email") {
   await requireProfile();
@@ -20,7 +20,7 @@ export async function sendAppointmentReminder(id: string, channel?: "whatsapp" |
   revalidatePath("/agenda");
   revalidatePath("/agenda/recordatorios");
   const msg = LABEL[res.status];
-  return res.status === "enviado" || res.status === "simulado"
+  return res.status === "enviado" || res.status === "simulado" || res.status === "pendiente"
     ? { ok: `${msg} por ${res.channel === "email" ? "correo" : res.channel === "sms" ? "SMS" : "WhatsApp"}.` }
     : { error: res.error ? `${msg}: ${res.error}` : msg };
 }
@@ -38,7 +38,7 @@ export async function sendPendingReminders(day: string) {
   }
   revalidatePath("/agenda/recordatorios");
   if (!list.length) return { ok: "No había recordatorios pendientes." };
-  const NAMES: Record<string, string> = { enviado: "enviados", simulado: "en modo prueba", fallido: "fallidos", sin_contacto: "sin teléfono ni correo" };
+  const NAMES: Record<string, string> = { pendiente: "en cola del bot", enviado: "enviados", simulado: "en modo prueba", fallido: "fallidos", sin_contacto: "sin teléfono ni correo" };
   const parts = Object.entries(count).map(([k, n]) => `${n} ${NAMES[k] ?? k}`);
   return { ok: `${list.length} cita${list.length === 1 ? "" : "s"}: ${parts.join(", ")}.` };
 }

@@ -12,11 +12,18 @@ type Db = SupabaseClient<Database>;
  *   En producción WhatsApp exige una plantilla aprobada: TWILIO_WHATSAPP_CONTENT_SID con variables
  *   {{1}} paciente, {{2}} fecha, {{3}} hora, {{4}} doctor, {{5}} enlace.
  * - Correo con Resend (RESEND_API_KEY, EMAIL_FROM).
+ * - WhatsApp con el bot propio (carpeta whatsapp-bot/, Baileys): WHATSAPP_PROVIDER=baileys. El mensaje queda
+ *   "pendiente" en la bitácora y el bot lo envía en cuanto lo ve.
  * Sin credenciales el mensaje se registra como "simulado" para poder probar el flujo.
  */
+export function whatsappViaBot() {
+  return process.env.WHATSAPP_PROVIDER === "baileys";
+}
+
 export function channelConfigured(channel: Channel) {
   const env = process.env;
   if (channel === "email") return !!(env.RESEND_API_KEY && env.EMAIL_FROM);
+  if (channel === "whatsapp" && whatsappViaBot()) return true;
   const twilio = !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN);
   return channel === "sms" ? twilio && !!env.TWILIO_SMS_FROM : twilio && !!env.TWILIO_WHATSAPP_FROM;
 }
@@ -133,6 +140,8 @@ export async function sendReminder(
   let outcome: Outcome;
   if (!channelConfigured(target.channel)) {
     outcome = { status: "simulado" };
+  } else if (target.channel === "whatsapp" && whatsappViaBot()) {
+    outcome = { status: "pendiente" };
   } else {
     try {
       outcome =
@@ -154,7 +163,7 @@ export async function sendReminder(
     status: outcome.status,
     provider_id: outcome.providerId ?? null,
     error: outcome.error ?? null,
-    sent_at: outcome.status === "fallido" ? null : new Date().toISOString(),
+    sent_at: outcome.status === "fallido" || outcome.status === "pendiente" ? null : new Date().toISOString(),
   });
   if (outcome.status !== "fallido") {
     await db.from("appointments").update({ reminder_sent_at: new Date().toISOString() }).eq("id", appt.id);

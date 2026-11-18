@@ -44,3 +44,10 @@ next-env.d.ts
 # Supabase CLI local
 supabase/.temp
 supabase/.branches
+
+# Bot de WhatsApp
+bot/node_modules
+bot/auth
+bot/qr.html
+bot/.env
+bot/*.log

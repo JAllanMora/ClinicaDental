@@ -15,7 +15,7 @@ const NSTATUS = {
   enviado: { label: "Enviado", tone: "green" },
   simulado: { label: "Registrado (prueba)", tone: "amber" },
   fallido: { label: "Falló", tone: "red" },
-  pendiente: { label: "Pendiente", tone: "gray" },
+  pendiente: { label: "En cola del bot", tone: "gray" },
 } as const;
 
 export default async function RemindersPage({ searchParams }: PageProps<"/agenda/recordatorios">) {
