@@ -86,12 +86,47 @@ Copia `.env.example` a `.env.local` (y agrégalas en Vercel → Settings → Env
 
 ### 3. Desarrollo local
 
+Para probar en tu computadora sin tocar el proyecto real de Supabase. Necesitas
+[Node.js 20 o más nuevo](https://nodejs.org), [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+abierto y [Git](https://git-scm.com).
+
 ```bash
+git clone https://github.com/JAllanMora/ClinicaDental.git
+cd ClinicaDental
 npm install
-npm run dev        # http://localhost:3000
-npm run lint
-npm run typecheck
+npx supabase start   # la primera vez descarga las imágenes (unos minutos)
 ```
+
+`supabase start` levanta Postgres, Auth y Storage en Docker, aplica `supabase/migrations` y carga
+`supabase/seed.sql` (pacientes, citas de hoy, un presupuesto, inventario y una orden de laboratorio).
+Al terminar muestra las llaves. Crea `.env.local` con:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<"Publishable key" o "anon key">
+SUPABASE_SERVICE_ROLE_KEY=<"Secret key" o "service_role key">
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
+
+```bash
+npm run dev          # http://localhost:3000
+```
+
+Usuarios de prueba (contraseña `Clinica2026!`):
+
+| Correo | Rol |
+| --- | --- |
+| `admin@clinica.local` | Administrador |
+| `dentista@clinica.local` | Odontóloga (Dra. Ana López) |
+| `dentista2@clinica.local` | Odontólogo (Dr. Carlos Ruiz) |
+| `recepcion@clinica.local` | Recepción |
+
+- Supabase Studio (ver tablas): http://127.0.0.1:54323 · Correos de prueba (invitaciones): http://127.0.0.1:54324
+- `npx supabase db reset` borra todo y vuelve a cargar los datos de demostración.
+- `npx supabase stop` apaga los contenedores.
+- Las citas de demostración son de hoy y mañana a partir del día en que corres el seed.
+
+Otros comandos: `npm run lint`, `npm run typecheck`, `npm run build`.
 
 ### 4. Recordatorios (WhatsApp, SMS y correo)
 
