@@ -13,7 +13,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     // El bot de WhatsApp es un servicio de Node aparte, no parte de la app.
-    "whatsapp-bot/**",
+    "bot/**",
   ]),
 ]);
 

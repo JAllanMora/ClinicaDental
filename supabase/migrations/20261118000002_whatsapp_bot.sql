@@ -145,8 +145,9 @@ as $$
   order by created_at
 $$;
 
-revoke all on function public.available_slots(integer, timestamptz, timestamptz, uuid, uuid) from public;
-revoke all on function public.patient_by_phone(text) from public;
+-- Supabase da EXECUTE a anon y authenticated por omisión; se quita explícitamente.
+revoke all on function public.available_slots(integer, timestamptz, timestamptz, uuid, uuid) from public, anon;
+revoke all on function public.patient_by_phone(text) from public, anon, authenticated;
 grant execute on function public.available_slots(integer, timestamptz, timestamptz, uuid, uuid) to authenticated, service_role;
 grant execute on function public.patient_by_phone(text) to service_role;
 

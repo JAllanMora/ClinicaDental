@@ -98,7 +98,7 @@ export default async function WhatsappPage() {
           ) : (
             <div className="space-y-2 text-sm text-brand-800">
               <p>El bot no está corriendo. En la computadora de la clínica abre una terminal y corre:</p>
-              <pre className="rounded-lg bg-brand-50 p-2 font-mono text-xs">cd ClinicaDental/whatsapp-bot{"\n"}npm start</pre>
+              <pre className="rounded-lg bg-brand-50 p-2 font-mono text-xs">cd ClinicaDental/bot{"\n"}npm start</pre>
               <p className="text-xs text-brand-700/70">Cuando arranque, aquí aparecerá el código para vincular WhatsApp.</p>
             </div>
           )}

@@ -1,0 +1,6 @@
+node_modules/
+# Sesión de WhatsApp vinculada: quien tenga esta carpeta controla el número.
+auth/
+qr.html
+.env
+*.log

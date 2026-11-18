@@ -264,6 +264,15 @@ export type ScheduleBlock = {
   created_at: string;
 };
 
+export type WorkingHour = {
+  id: string;
+  dentist_id: string;
+  weekday: number;
+  starts: string; // "09:00:00"
+  ends: string;
+  created_at: string;
+};
+
 export type WaitlistEntry = {
   id: string;
   patient_id: string;
@@ -670,6 +679,11 @@ export type Database = {
         Partial<ScheduleBlock> & Pick<ScheduleBlock, "starts_at" | "ends_at" | "reason">,
         [Fk<"schedule_blocks", "dentist_id", "profiles">, Fk<"schedule_blocks", "chair_id", "chairs">]
       >;
+      working_hours: TableDef<
+        WorkingHour,
+        Partial<WorkingHour> & Pick<WorkingHour, "dentist_id" | "weekday" | "starts" | "ends">,
+        [Fk<"working_hours", "dentist_id", "profiles">]
+      >;
       waitlist: TableDef<
         WaitlistEntry,
         Partial<WaitlistEntry> & Pick<WaitlistEntry, "patient_id">,
@@ -801,6 +815,7 @@ export type Database = {
         Args: { p_duration: number; p_from: string; p_to: string; p_dentist?: string | null; p_prefer?: string | null };
         Returns: AvailableSlot[];
       };
+      set_working_hours: { Args: { p_dentist: string; p_shifts: Json }; Returns: undefined };
     };
     Enums: { app_role: AppRole; sex: Sex; finding_layer: FindingLayer; tooth_surface: ToothSurface; file_kind: FileKind; appointment_status: AppointmentStatus; contact_channel: ContactChannel; notification_status: NotificationStatus; plan_status: PlanStatus; plan_item_status: PlanItemStatus; payment_method: PaymentMethod; inventory_move: InventoryMove; lab_status: LabStatus };
     CompositeTypes: { [_ in never]: never };

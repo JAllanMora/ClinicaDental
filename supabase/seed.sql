@@ -45,6 +45,20 @@ update public.profiles set specialty = 'Odontología general', professional_id =
 update public.profiles set specialty = 'Endodoncia', professional_id = '87654321', color = '#6366F1', commission_pct = 35
   where email = 'dentista2@clinica.local';
 
+-- Turnos: lunes a viernes 9–14 y 16–20, sábado 9–14.
+insert into public.working_hours (dentist_id, weekday, starts, ends)
+select p.id, d.weekday, d.starts, d.ends
+from public.profiles p
+cross join (values
+  (1::smallint, time '09:00', time '14:00'), (1, '16:00', '20:00'),
+  (2, '09:00', '14:00'), (2, '16:00', '20:00'),
+  (3, '09:00', '14:00'), (3, '16:00', '20:00'),
+  (4, '09:00', '14:00'), (4, '16:00', '20:00'),
+  (5, '09:00', '14:00'), (5, '16:00', '20:00'),
+  (6, '09:00', '14:00')
+) as d (weekday, starts, ends)
+where p.role = 'dentist';
+
 -- -----------------------------------------------------------------------------
 -- Pacientes, historia clínica y equipo de atención
 -- -----------------------------------------------------------------------------

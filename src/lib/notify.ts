@@ -12,7 +12,7 @@ type Db = SupabaseClient<Database>;
  *   En producción WhatsApp exige una plantilla aprobada: TWILIO_WHATSAPP_CONTENT_SID con variables
  *   {{1}} paciente, {{2}} fecha, {{3}} hora, {{4}} doctor, {{5}} enlace.
  * - Correo con Resend (RESEND_API_KEY, EMAIL_FROM).
- * - WhatsApp con el bot propio (carpeta whatsapp-bot/, Baileys): WHATSAPP_PROVIDER=baileys. El mensaje queda
+ * - WhatsApp con el bot propio (carpeta bot/, Baileys): WHATSAPP_PROVIDER=baileys. El mensaje queda
  *   "pendiente" en la bitácora y el bot lo envía en cuanto lo ve.
  * Sin credenciales el mensaje se registra como "simulado" para poder probar el flujo.
  */

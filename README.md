@@ -16,6 +16,7 @@ y desplegado en **Vercel**.
 | 6 | Presupuestos, abonos, saldos, corte de caja, comisiones (sin CFDI por ahora) | ✅ |
 | 7 | Inventario por lotes con caducidades y alertas; órdenes de laboratorio | ✅ |
 | 8 | Reportes, métricas y modo tablet para pacientes | ✅ |
+| 9 | Horarios por odontólogo y días libres; bot de WhatsApp que agenda, confirma y recuerda | ✅ |
 
 ## Modo tablet
 
@@ -145,7 +146,16 @@ Otros comandos: `npm run lint`, `npm run typecheck`, `npm run build`.
 - Sin credenciales todo funciona en **modo prueba**: los mensajes se registran en *Agenda → Recordatorios*
   pero no salen.
 
-### 5. Vercel
+### 5. Bot de WhatsApp
+
+El bot vive en `bot/` y corre en una computadora de la clínica (no en Vercel). Instrucciones en
+[bot/README.md](bot/README.md). Los turnos de cada odontólogo y sus días libres se editan en
+*Agenda → Horarios*; el bot sólo ofrece horarios dentro de ellos.
+
+Si la app está en Vercel y el bot en la clínica, pon `WHATSAPP_PROVIDER=baileys` en Vercel: el cron diario deja
+los recordatorios de WhatsApp en cola y el bot los manda.
+
+### 6. Vercel
 
 Importa el repositorio en Vercel, agrega las variables de entorno y despliega. No requiere configuración extra.
 

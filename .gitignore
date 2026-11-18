@@ -51,3 +51,4 @@ bot/auth
 bot/qr.html
 bot/.env
 bot/*.log
+dev-server.log
