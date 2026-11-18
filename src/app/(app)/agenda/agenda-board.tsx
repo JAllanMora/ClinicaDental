@@ -183,6 +183,9 @@ export function AgendaBoard(props: {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <ButtonLink href="/agenda/horarios" variant="secondary">
+            Horarios
+          </ButtonLink>
           <ButtonLink href="/agenda/recordatorios" variant="secondary">
             Recordatorios
           </ButtonLink>
