@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Card } from "@/components/ui";
-import { canSeeClinical, requireProfile } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
+import { canViewClinical } from "@/lib/permissions";
 import { FILE_KIND_LABEL, formatBytes } from "@/lib/files";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
@@ -14,7 +15,7 @@ export const metadata: Metadata = { title: "Visor" };
 export default async function FilePage({ params }: PageProps<"/pacientes/[id]/imagenes/[fid]">) {
   const profile = await requireProfile();
   const { id, fid } = await params;
-  if (!canSeeClinical(profile.role)) redirect(`/pacientes/${id}`);
+  if (!(await canViewClinical(profile))) redirect(`/pacientes/${id}`);
 
   const supabase = await createClient();
   const { data: file } = await supabase

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireProfile } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 import type { PlanItemStatus, PlanStatus } from "@/lib/database.types";
 import { CONDITION_LABEL, SURFACE_LABEL } from "@/lib/odontogram";
 import { createClient } from "@/lib/supabase/server";
@@ -169,7 +170,7 @@ const paymentSchema = z.object({
 });
 
 export async function addPayment(patientId: string, branchId: string, _prev: FormResult, formData: FormData): Promise<FormResult> {
-  await requireProfile(["admin", "reception"]);
+  await requirePermission("caja");
   const raw = Object.fromEntries(["amount", "method", "plan_id", "reference", "notes"].map((k) => [k, String(formData.get(k) ?? "")]));
   const parsed = paymentSchema.safeParse(raw);
   if (!parsed.success) return { error: "Escribe un monto válido y la forma de pago.", values: raw };
@@ -194,7 +195,7 @@ export async function addPayment(patientId: string, branchId: string, _prev: For
 }
 
 export async function voidPayment(patientId: string, paymentId: string, reason: string): Promise<Result> {
-  await requireProfile(["admin", "reception"]);
+  await requirePermission("caja");
   if (reason.trim().length < 3) return { error: "Escribe el motivo de la cancelación." };
   const supabase = await createClient();
   const { error } = await supabase.from("payments").update({ voided: true, void_reason: reason.trim() }).eq("id", paymentId);

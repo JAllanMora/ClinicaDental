@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge, Card, PageHeader } from "@/components/ui";
-import { requireProfile } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 import { CLINIC_OFFSET, clinicParts, todayStr } from "@/lib/agenda";
 import { EXPENSE_CATEGORIES, type ExpenseCategory } from "@/lib/database.types";
 import { METHOD_LABEL, isMonth, monthLabel, round2, shiftMonth } from "@/lib/finance";
@@ -14,7 +14,8 @@ export const metadata: Metadata = { title: "Finanzas" };
 const inMonth = (iso: string | null, month: string) => !!iso && clinicParts(iso).day.startsWith(month);
 
 export default async function FinancePage({ searchParams }: PageProps<"/finanzas">) {
-  await requireProfile(["admin"]);
+  const profile = await requirePermission("finanzas");
+  const canEdit = profile.role === "admin";
   const sp = await searchParams;
   const month = isMonth(sp.mes) ? sp.mes : todayStr().slice(0, 7);
   const first = `${month}-01`;
@@ -24,7 +25,7 @@ export default async function FinancePage({ searchParams }: PageProps<"/finanzas
 
   const supabase = await createClient();
   const [payments, commissions, labCosts, lotCosts, expenses, recurring, petty] = await Promise.all([
-    supabase.from("payments").select("amount").eq("voided", false).gte("received_at", start).lt("received_at", end),
+    supabase.from("payments").select("amount, fee").eq("voided", false).gte("received_at", start).lt("received_at", end),
     supabase.rpc("commission_report", { p_from: start, p_to: end }),
     supabase.from("lab_order_costs").select("cost, order:lab_orders(status, created_at, sent_at, received_at)"),
     supabase.from("inventory_lot_costs").select("unit_cost, lot:inventory_lots(received_qty, remaining, received_at)"),
@@ -35,6 +36,7 @@ export default async function FinancePage({ searchParams }: PageProps<"/finanzas
 
   const sum = (xs: number[]) => round2(xs.reduce((s, n) => s + n, 0));
   const income = sum((payments.data ?? []).map((p) => Number(p.amount)));
+  const bankFees = sum((payments.data ?? []).map((p) => Number(p.fee ?? 0)));
   const production = sum((commissions.data ?? []).map((c) => Number(c.line_total)));
   const commissionTotal = sum((commissions.data ?? []).map((c) => Number(c.commission)));
   // Laboratorio: se cuenta en el mes en que se recibió el trabajo (o se envió / pidió, si aún no llega).
@@ -50,7 +52,7 @@ export default async function FinancePage({ searchParams }: PageProps<"/finanzas
   for (const e of liveExpenses) byCategory.set(e.category, round2((byCategory.get(e.category) ?? 0) + Number(e.amount)));
   const operating = sum(liveExpenses.map((e) => Number(e.amount)));
   const pettyCash = sum((petty.data ?? []).map((e) => Number(e.amount)));
-  const costs = round2(commissionTotal + lab + purchases + operating + pettyCash);
+  const costs = round2(commissionTotal + lab + purchases + operating + pettyCash + bankFees);
   const profit = round2(income - costs);
   const margin = income > 0 ? Math.round((profit / income) * 100) : null;
 
@@ -69,6 +71,7 @@ export default async function FinancePage({ searchParams }: PageProps<"/finanzas
       .sort((a, b) => b[1] - a[1])
       .map(([k, v]) => ({ label: EXPENSE_CATEGORIES[k], amount: v })),
     { label: "Egresos de caja chica", amount: pettyCash, hint: "Registrados en Caja", href: "/caja" },
+    { label: "Comisiones bancarias", amount: bankFees, hint: "Terminal de tarjeta y otras formas de pago" },
   ];
   const lines = allLines.filter((l) => l.amount > 0 || l.href);
   const maxLine = Math.max(income, ...lines.map((l) => l.amount), 1);
@@ -77,7 +80,7 @@ export default async function FinancePage({ searchParams }: PageProps<"/finanzas
     <>
       <PageHeader
         title="Finanzas"
-        description="Estado de resultados del mes: lo que entra, lo que cuesta operar la clínica y lo que queda. Sólo lo ve el administrador."
+        description="Estado de resultados del mes: lo que entra, lo que cuesta operar la clínica y lo que queda."
       />
       <div className="mb-6 flex items-center gap-2">
         <Link href={`?mes=${shiftMonth(month, -1)}`} className="rounded-lg px-3 py-1.5 text-brand-700 hover:bg-brand-50" aria-label="Mes anterior">
@@ -168,23 +171,23 @@ export default async function FinancePage({ searchParams }: PageProps<"/finanzas
                     </span>
                   </span>
                   <span className="font-medium">{money(r.amount)}</span>
-                  <RecurringToggle id={r.id} active={r.active} />
+                  {canEdit && <RecurringToggle id={r.id} active={r.active} />}
                 </li>
               ))}
             </ul>
           )}
-          {recurringList.length > 0 && (
+          {canEdit && recurringList.length > 0 && (
             <div className="mb-5">
               <ApplyRecurring month={month} pending={missing} />
             </div>
           )}
-          <RecurringForm />
+          {canEdit ? <RecurringForm /> : !recurringList.length && <p className="text-sm text-brand-700/70">Sin gastos fijos.</p>}
         </Card>
       </div>
 
       <Card className="mt-6">
         <h2 className="mb-4 font-semibold text-brand-900">Gastos del mes</h2>
-        <ExpenseForm defaultDay={defaultDay} />
+        {canEdit && <ExpenseForm defaultDay={defaultDay} />}
         <div className="mt-6 overflow-x-auto">
           {(expenses.data ?? []).length ? (
             <table className="w-full min-w-[40rem] text-sm">
@@ -219,7 +222,7 @@ export default async function FinancePage({ searchParams }: PageProps<"/finanzas
                     <td className="py-2">{EXPENSE_CATEGORIES[e.category]}</td>
                     <td className="py-2">{METHOD_LABEL[e.method]}</td>
                     <td className={`py-2 text-right font-medium ${e.voided ? "line-through" : "text-brand-900"}`}>{money(e.amount)}</td>
-                    <td className="py-2 pl-3 text-right">{!e.voided && <VoidExpense id={e.id} />}</td>
+                    <td className="py-2 pl-3 text-right">{canEdit && !e.voided && <VoidExpense id={e.id} />}</td>
                   </tr>
                 ))}
               </tbody>

@@ -3,24 +3,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import type { AppRole } from "@/lib/database.types";
+import type { AppRole, PermissionKey } from "@/lib/database.types";
 import { Logo } from "@/components/logo";
 import { cx } from "@/components/ui";
 
-type Item = { href: string; label: string; icon: string; roles?: AppRole[]; soon?: boolean };
+type Item = { href: string; label: string; icon: string; roles?: AppRole[]; perm?: PermissionKey; soon?: boolean };
 
 const ITEMS: Item[] = [
   { href: "/", label: "Inicio", icon: "M3 11.5 12 4l9 7.5M5 10v10h5v-6h4v6h5V10" },
   { href: "/pacientes", label: "Pacientes", icon: "M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM21 19v-1a4 4 0 0 0-3-3.9M15.5 3.1a3.5 3.5 0 0 1 0 6.8" },
   { href: "/agenda", label: "Agenda", icon: "M8 3v3M16 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"},
-  { href: "/whatsapp", label: "WhatsApp", icon: "M3.5 20.5 5 16a8.5 8.5 0 1 1 3.2 3.1L3.5 20.5ZM9 9.5c0 3 2.5 5.5 5.5 5.5l1.2-1.4-2-1-1 .8a4 4 0 0 1-2.1-2.1l.8-1-1-2L9 9.5Z", roles: ["admin", "reception"] },
-  { href: "/laboratorio", label: "Laboratorio", icon: "M9 3h6M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3M7 15h10" },
-  { href: "/inventario", label: "Inventario", icon: "M21 8 12 3 3 8v8l9 5 9-5V8ZM3 8l9 5 9-5M12 13v8" },
-  { href: "/caja", label: "Caja", icon: "M3 7a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7ZM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM6 9.5v.01M18 14.5v.01", roles: ["admin", "reception"] },
-  { href: "/finanzas", label: "Finanzas", icon: "M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6", roles: ["admin"] },
-  { href: "/comisiones", label: "Comisiones", icon: "M19 5 5 19M7.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM16.5 18a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z", roles: ["admin", "dentist"] },
-  { href: "/reportes", label: "Reportes", icon: "M4 20V10M10 20V4M16 20v-7M22 20H2", roles: ["admin"] },
-  { href: "/tablet", label: "Modo tablet", icon: "M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM11 18h2" },
+  { href: "/whatsapp", label: "WhatsApp", icon: "M3.5 20.5 5 16a8.5 8.5 0 1 1 3.2 3.1L3.5 20.5ZM9 9.5c0 3 2.5 5.5 5.5 5.5l1.2-1.4-2-1-1 .8a4 4 0 0 1-2.1-2.1l.8-1-1-2L9 9.5Z", perm: "whatsapp" },
+  { href: "/laboratorio", label: "Laboratorio", icon: "M9 3h6M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3M7 15h10", perm: "laboratorio" },
+  { href: "/inventario", label: "Inventario", icon: "M21 8 12 3 3 8v8l9 5 9-5V8ZM3 8l9 5 9-5M12 13v8", perm: "inventario" },
+  { href: "/caja", label: "Caja", icon: "M3 7a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7ZM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM6 9.5v.01M18 14.5v.01", perm: "caja" },
+  { href: "/finanzas", label: "Finanzas", icon: "M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6", perm: "finanzas" },
+  { href: "/comisiones", label: "Comisiones", icon: "M19 5 5 19M7.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM16.5 18a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z", perm: "comisiones" },
+  { href: "/reportes", label: "Reportes", icon: "M4 20V10M10 20V4M16 20v-7M22 20H2", perm: "reportes" },
+  { href: "/tablet", label: "Modo tablet", icon: "M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM11 18h2", perm: "tablet" },
   { href: "/configuracion", label: "Configuración", icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z", roles: ["admin"] },
   { href: "/bitacora", label: "Bitácora", icon: "M9 12h6M9 16h6M9 8h2M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z", roles: ["admin"] },
 ];
@@ -35,16 +35,18 @@ function Icon({ d }: { d: string }) {
 
 export function AppNav({
   role,
+  perms,
   name,
   roleLabel,
 }: {
   role: AppRole;
+  perms: PermissionKey[];
   name: string;
   roleLabel: string;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const items = ITEMS.filter((i) => !i.roles || i.roles.includes(role));
+  const items = ITEMS.filter((i) => (!i.roles || i.roles.includes(role)) && (!i.perm || perms.includes(i.perm)));
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 

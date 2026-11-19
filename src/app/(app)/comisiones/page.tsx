@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
-import { requireProfile } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 import { CLINIC_OFFSET, todayStr } from "@/lib/agenda";
 import { isMonth, monthLabel, round2, shiftMonth } from "@/lib/finance";
 import { formatDate, money } from "@/lib/format";
@@ -11,8 +11,9 @@ import { CommissionRules } from "./rules";
 export const metadata: Metadata = { title: "Comisiones" };
 
 export default async function CommissionsPage({ searchParams }: PageProps<"/comisiones">) {
-  const profile = await requireProfile(["admin", "dentist"]);
+  const profile = await requirePermission("comisiones");
   const isAdmin = profile.role === "admin";
+  const seesAll = profile.role !== "dentist";
   const sp = await searchParams;
   const month = isMonth(sp.mes) ? sp.mes : todayStr().slice(0, 7);
   const start = `${month}-01T00:00:00${CLINIC_OFFSET}`;
@@ -28,7 +29,7 @@ export default async function CommissionsPage({ searchParams }: PageProps<"/comi
     isAdmin ? supabase.from("treatments").select("id, name, price").eq("active", true).order("name") : Promise.resolve({ data: [] }),
   ]);
 
-  const visible = (dentists ?? []).filter((d) => isAdmin || d.id === profile.id);
+  const visible = (dentists ?? []).filter((d) => seesAll || d.id === profile.id);
   const rows = visible
     .map((d) => {
       const detail = (report ?? []).filter((r) => r.dentist_id === d.id);
@@ -46,11 +47,13 @@ export default async function CommissionsPage({ searchParams }: PageProps<"/comi
   return (
     <>
       <PageHeader
-        title={isAdmin ? "Comisiones" : "Mis comisiones"}
+        title={seesAll ? "Comisiones" : "Mis comisiones"}
         description={
           isAdmin
             ? "Producción de cada odontólogo (tratamientos marcados como realizados), costo de laboratorio y comisión. Sólo tú ves los costos y los porcentajes."
-            : "Tus tratamientos realizados en el mes y lo que te corresponde por cada uno."
+            : seesAll
+              ? "Producción de cada odontólogo y lo que le corresponde en el mes."
+              : "Tus tratamientos realizados en el mes y lo que te corresponde por cada uno."
         }
       />
       <div className="mb-6 flex flex-wrap items-center gap-2">
@@ -84,7 +87,7 @@ export default async function CommissionsPage({ searchParams }: PageProps<"/comi
                     </div>
                   )}
                   <div>
-                    <p className="text-xs text-brand-700/70">{isAdmin ? "Comisión" : "Te corresponde"}</p>
+                    <p className="text-xs text-brand-700/70">{seesAll ? "Comisión" : "Te corresponde"}</p>
                     <p className="text-lg font-semibold text-magenta-500">{money(r.commission)}</p>
                   </div>
                 </div>

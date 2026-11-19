@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, PageHeader } from "@/components/ui";
-import { requireProfile } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 import { fullName, money } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { OrderForm, PickPatient } from "../forms";
@@ -9,7 +9,7 @@ import { OrderForm, PickPatient } from "../forms";
 export const metadata: Metadata = { title: "Nueva orden de laboratorio" };
 
 export default async function NewLabOrderPage({ searchParams }: PageProps<"/laboratorio/nueva">) {
-  const profile = await requireProfile();
+  const profile = await requirePermission("laboratorio");
   const sp = await searchParams;
   const patientId = typeof sp.paciente === "string" ? sp.paciente : null;
   const supabase = await createClient();

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge, Card, PageHeader } from "@/components/ui";
-import { requireProfile } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 import { formatDateTime, fullName, money } from "@/lib/format";
 import { LAB_STATUS } from "@/lib/lab";
 import { createClient } from "@/lib/supabase/server";
@@ -11,7 +11,7 @@ import { OrderForm, StatusButtons } from "../forms";
 export const metadata: Metadata = { title: "Orden de laboratorio" };
 
 export default async function LabOrderPage({ params }: PageProps<"/laboratorio/[id]">) {
-  const profile = await requireProfile();
+  const profile = await requirePermission("laboratorio");
   const { id } = await params;
   const supabase = await createClient();
   const { data: order } = await supabase

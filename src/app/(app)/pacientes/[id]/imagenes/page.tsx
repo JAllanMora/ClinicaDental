@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Badge, EmptyState } from "@/components/ui";
-import { canSeeClinical, requireProfile } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
+import { canViewClinical } from "@/lib/permissions";
 import { FILE_KINDS, FILE_KIND_LABEL } from "@/lib/files";
 import { formatDate } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
@@ -16,7 +17,7 @@ export default async function FilesPage({ params, searchParams }: PageProps<"/pa
   const profile = await requireProfile();
   const { id } = await params;
   const { tipo } = await searchParams;
-  if (!canSeeClinical(profile.role)) redirect(`/pacientes/${id}`);
+  if (!(await canViewClinical(profile))) redirect(`/pacientes/${id}`);
 
   const supabase = await createClient();
   let q = supabase

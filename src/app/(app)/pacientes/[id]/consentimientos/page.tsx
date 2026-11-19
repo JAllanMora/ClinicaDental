@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Badge, ButtonLink, Card, EmptyState } from "@/components/ui";
-import { canSeeClinical, requireProfile } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
+import { canViewClinical } from "@/lib/permissions";
 import { formatDateTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,7 +12,7 @@ export const metadata: Metadata = { title: "Consentimientos" };
 export default async function ConsentsPage({ params }: PageProps<"/pacientes/[id]/consentimientos">) {
   const profile = await requireProfile();
   const { id } = await params;
-  if (!canSeeClinical(profile.role)) redirect(`/pacientes/${id}`);
+  if (!(await canViewClinical(profile))) redirect(`/pacientes/${id}`);
 
   const supabase = await createClient();
   const { data: consents } = await supabase

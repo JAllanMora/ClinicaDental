@@ -1,5 +1,5 @@
 import { CLINIC_OFFSET, clinicParts, minutesToLabel } from "@/lib/agenda";
-import { getCurrentProfile } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { METHOD_LABEL } from "@/lib/finance";
 import { fullName } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
@@ -8,8 +8,7 @@ import { shiftMonth } from "../data";
 const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 
 export async function GET(request: Request) {
-  const profile = await getCurrentProfile();
-  if (profile?.role !== "admin") return new Response("No autorizado", { status: 403 });
+  if (!(await hasPermission("reportes"))) return new Response("No autorizado", { status: 403 });
   const mes = new URL(request.url).searchParams.get("mes") ?? "";
   if (!/^\d{4}-\d{2}$/.test(mes)) return new Response("Mes inválido", { status: 400 });
 

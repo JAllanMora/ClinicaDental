@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { canSeeClinical, requireProfile } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
+import { canViewClinical } from "@/lib/permissions";
 import { formatDateTime } from "@/lib/format";
 import { saveMedicalHistory } from "../../actions";
 import { createClient } from "@/lib/supabase/server";
@@ -13,7 +14,7 @@ export const metadata: Metadata = { title: "Historia clínica" };
 export default async function MedicalHistoryPage({ params }: PageProps<"/pacientes/[id]/historia">) {
   const profile = await requireProfile();
   const { id } = await params;
-  if (!canSeeClinical(profile.role)) redirect(`/pacientes/${id}`);
+  if (!(await canViewClinical(profile))) redirect(`/pacientes/${id}`);
 
   const supabase = await createClient();
   const [history, { data: pending }, { count: reviewed }] = await Promise.all([

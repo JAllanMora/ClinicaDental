@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
-import { requireProfile } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 import { formatDateTime, fullName } from "@/lib/format";
 import { whatsappViaBot } from "@/lib/notify";
 import { createClient } from "@/lib/supabase/server";
@@ -24,7 +24,7 @@ function isStale(lastSeen: string | null | undefined) {
 type PatientName = { first_name: string; last_name: string; second_last_name: string | null } | null;
 
 export default async function WhatsappPage() {
-  const profile = await requireProfile(["admin", "reception"]);
+  const profile = await requirePermission("whatsapp");
   const supabase = await createClient();
   const [{ data: status }, { data: settings }, { data: types }, { data: waiting }, { data: recent }] = await Promise.all([
     supabase.from("whatsapp_status").select("*").single(),

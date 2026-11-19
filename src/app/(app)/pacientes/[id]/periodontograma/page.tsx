@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { canSeeClinical, requireProfile } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
+import { canViewClinical } from "@/lib/permissions";
 import { formatDate } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { cx } from "@/components/ui";
@@ -13,7 +14,7 @@ export default async function PerioPage({ params, searchParams }: PageProps<"/pa
   const profile = await requireProfile();
   const { id } = await params;
   const { examen } = await searchParams;
-  if (!canSeeClinical(profile.role)) redirect(`/pacientes/${id}`);
+  if (!(await canViewClinical(profile))) redirect(`/pacientes/${id}`);
 
   const supabase = await createClient();
   const { data: exams } = await supabase

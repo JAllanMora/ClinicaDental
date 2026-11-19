@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, PageHeader } from "@/components/ui";
-import { requireProfile } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 import { todayStr } from "@/lib/agenda";
 import { METHODS } from "@/lib/finance";
 import { fullName, money } from "@/lib/format";
@@ -47,7 +47,7 @@ function BarList({ rows }: { rows: { label: string; value: number; extra?: strin
 }
 
 export default async function ReportsPage({ searchParams }: PageProps<"/reportes">) {
-  await requireProfile(["admin"]);
+  await requirePermission("reportes");
   const sp = await searchParams;
   const month = typeof sp.mes === "string" && /^\d{4}-\d{2}$/.test(sp.mes) ? sp.mes : todayStr().slice(0, 7);
   const supabase = await createClient();

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge, Card, EmptyState } from "@/components/ui";
 import { canSeeClinical, requireProfile } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { METHOD_LABEL, PLAN_STATUS } from "@/lib/finance";
 import { formatDate, formatDateTime, money } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
@@ -29,7 +30,7 @@ export default async function AccountPage({ params }: PageProps<"/pacientes/[id]
   ]);
   const { data: branches } = await supabase.from("branches").select("id").eq("active", true).limit(1);
   const branchId = patient?.branch_id ?? branches?.[0]?.id ?? "";
-  const cashier = profile.role === "admin" || profile.role === "reception";
+  const cashier = await hasPermission("caja");
   const owed = Number(balance?.balance ?? 0);
 
   const planRows = (plans ?? []).map((p) => {

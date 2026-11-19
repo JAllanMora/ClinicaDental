@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Badge, ButtonLink } from "@/components/ui";
-import { canSeeClinical, requireProfile } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
+import { canViewClinical } from "@/lib/permissions";
 import { ALERT_CONDITIONS, PATHOLOGICAL_CONDITIONS } from "@/lib/clinical";
 import { ageFrom, fullName, initials, recordNumber } from "@/lib/format";
 import { getMedicalHistory, getPatient } from "./data";
@@ -12,7 +13,7 @@ export default async function PatientLayout({ params, children }: LayoutProps<"/
   const patient = await getPatient(id);
   if (!patient) notFound();
 
-  const clinical = canSeeClinical(profile.role);
+  const clinical = await canViewClinical(profile);
   const history = clinical ? await getMedicalHistory(id) : null;
   const name = fullName(patient);
   const age = ageFrom(patient.birth_date);
@@ -62,6 +63,11 @@ export default async function PatientLayout({ params, children }: LayoutProps<"/
         </div>
       )}
 
+      {clinical && profile.role === "reception" && (
+        <p className="mb-4 rounded-xl border border-brand-100 bg-brand-50 px-4 py-2 text-xs text-brand-700 print:hidden">
+          Acceso de recepción al expediente: puedes consultarlo y capturar la historia clínica. Odontograma, notas de evolución y consentimientos los registra el odontólogo.
+        </p>
+      )}
       <PatientTabs id={id} clinical={clinical} />
       {children}
     </>

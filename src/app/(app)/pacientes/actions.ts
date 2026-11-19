@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { canSeeClinical, requireProfile } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
+import { canViewClinical } from "@/lib/permissions";
 import { PATHOLOGICAL_CONDITIONS } from "@/lib/clinical";
 import { createClient } from "@/lib/supabase/server";
 
@@ -103,7 +104,7 @@ export async function setPatientActive(id: string, active: boolean) {
 
 export async function saveMedicalHistory(patientId: string, _prev: FormState, formData: FormData): Promise<FormState> {
   const profile = await requireProfile();
-  if (!canSeeClinical(profile.role)) return { error: "No tienes permiso para editar la historia clínica." };
+  if (!(await canViewClinical(profile))) return { error: "No tienes permiso para editar la historia clínica." };
 
   const text = (key: string) => {
     const v = String(formData.get(key) ?? "").trim();

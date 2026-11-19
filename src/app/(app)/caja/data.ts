@@ -19,11 +19,16 @@ export async function cashDay(db: SupabaseClient<Database>, branchId: string, da
     db.from("cash_closures").select("*, closer:profiles!cash_closures_closed_by_fkey(full_name)").eq("branch_id", branchId).eq("day", day).maybeSingle(),
   ]);
   const byMethod = Object.fromEntries(METHODS.map((m) => [m.key, 0])) as Record<PaymentMethod, number>;
+  const feeByMethod = Object.fromEntries(METHODS.map((m) => [m.key, 0])) as Record<PaymentMethod, number>;
   let cancelled = 0;
   for (const p of payments ?? []) {
     if (p.voided) cancelled += Number(p.amount);
-    else byMethod[p.method] += Number(p.amount);
+    else {
+      byMethod[p.method] += Number(p.amount);
+      feeByMethod[p.method] = round2(feeByMethod[p.method] + Number(p.fee ?? 0));
+    }
   }
+  const fees = round2(Object.values(feeByMethod).reduce((s, n) => s + n, 0));
   const liveExpenses = (expenses ?? []).filter((e) => !e.voided);
   const cashExpenses = round2(liveExpenses.filter((e) => e.method === "efectivo").reduce((s, e) => s + Number(e.amount), 0));
   const totalExpenses = round2(liveExpenses.reduce((s, e) => s + Number(e.amount), 0));
@@ -33,6 +38,8 @@ export async function cashDay(db: SupabaseClient<Database>, branchId: string, da
     expenses: expenses ?? [],
     closure,
     byMethod,
+    feeByMethod,
+    fees,
     cancelled: round2(cancelled),
     cashExpenses,
     totalExpenses,

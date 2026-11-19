@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
-import { requireProfile } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 import { todayStr } from "@/lib/agenda";
 import { formatDate } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
@@ -11,7 +11,7 @@ import { stockRows } from "./data";
 export const metadata: Metadata = { title: "Inventario" };
 
 export default async function InventoryPage({ searchParams }: PageProps<"/inventario">) {
-  const profile = await requireProfile();
+  const profile = await requirePermission("inventario");
   const sp = await searchParams;
   const onlyAlerts = sp.vista === "alertas";
   const supabase = await createClient();

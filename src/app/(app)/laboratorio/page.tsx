@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
-import { requireProfile } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 import { todayStr } from "@/lib/agenda";
 import { formatDate, fullName, money } from "@/lib/format";
 import { LAB_OPEN, LAB_PENDING, LAB_STATUS } from "@/lib/lab";
@@ -11,7 +11,7 @@ import { LabForm } from "./forms";
 export const metadata: Metadata = { title: "Laboratorio" };
 
 export default async function LabPage({ searchParams }: PageProps<"/laboratorio">) {
-  const profile = await requireProfile();
+  const profile = await requirePermission("laboratorio");
   const sp = await searchParams;
   const all = sp.vista === "todas";
   const supabase = await createClient();

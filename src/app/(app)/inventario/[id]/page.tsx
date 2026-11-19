@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge, Card, PageHeader } from "@/components/ui";
-import { requireProfile } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 import { todayStr } from "@/lib/agenda";
 import { formatDate, formatDateTime, money } from "@/lib/format";
 import { MOVE_LABEL } from "@/lib/lab";
@@ -12,7 +12,7 @@ import { ItemForm, StockButtons } from "../controls";
 export const metadata: Metadata = { title: "Artículo de inventario" };
 
 export default async function ItemPage({ params }: PageProps<"/inventario/[id]">) {
-  const profile = await requireProfile();
+  const profile = await requirePermission("inventario");
   const { id } = await params;
   const supabase = await createClient();
   const isAdmin = profile.role === "admin";

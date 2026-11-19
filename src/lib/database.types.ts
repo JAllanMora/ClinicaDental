@@ -423,6 +423,8 @@ export type Payment = {
   void_reason: string | null;
   voided_by: string | null;
   voided_at: string | null;
+  /** Comisión bancaria calculada al registrar el pago. */
+  fee: number;
 };
 
 export type CashExpense = {
@@ -605,6 +607,51 @@ export type CommissionReportRow = {
   lab_cost: number | null;
   pct: number | null;
   commission: number;
+};
+
+export const PERMISSION_KEYS = ["expediente", "caja", "whatsapp", "inventario", "laboratorio", "tablet", "comisiones", "reportes", "finanzas"] as const;
+export type PermissionKey = (typeof PERMISSION_KEYS)[number];
+
+export type RolePermission = {
+  role: Exclude<AppRole, "admin">;
+  permission: PermissionKey;
+  allowed: boolean;
+  updated_at: string;
+};
+
+export type PaymentMethodFee = {
+  method: PaymentMethod;
+  pct: number;
+  fixed_fee: number;
+  add_iva: boolean;
+  updated_at: string;
+};
+
+export type SpeiSettings = {
+  id: number;
+  receiver_bank_code: string | null;
+  receiver_bank_name: string | null;
+  clabe: string | null;
+  holder: string | null;
+  updated_at: string;
+};
+
+export type SpeiValidation = {
+  id: string;
+  payment_id: string | null;
+  tracking_key: string;
+  operation_date: string;
+  sender_bank_code: string;
+  sender_bank_name: string | null;
+  amount: number;
+  receiver_bank_code: string;
+  clabe: string;
+  found: boolean;
+  valid: boolean;
+  message: string;
+  details: Json | null;
+  validated_by: string | null;
+  created_at: string;
 };
 
 type Fk<T extends string, C extends string, R extends string> = {
@@ -859,6 +906,14 @@ export type Database = {
         Partial<Expense> & Pick<Expense, "category" | "concept" | "amount">,
         [Fk<"expenses", "created_by", "profiles">, Fk<"expenses", "recurring_id", "recurring_expenses">]
       >;
+      role_permissions: TableDef<RolePermission, Optional<RolePermission, "allowed" | "updated_at">>;
+      payment_method_fees: TableDef<PaymentMethodFee, Optional<PaymentMethodFee, "pct" | "fixed_fee" | "add_iva" | "updated_at">>;
+      spei_settings: TableDef<SpeiSettings, Partial<SpeiSettings>>;
+      spei_validations: TableDef<
+        SpeiValidation,
+        Optional<SpeiValidation, "id" | "payment_id" | "sender_bank_name" | "details" | "validated_by" | "created_at">,
+        [Fk<"spei_validations", "payment_id", "payments">, Fk<"spei_validations", "validated_by", "profiles">]
+      >;
       consent_templates: TableDef<ConsentTemplate, Partial<ConsentTemplate> & Pick<ConsentTemplate, "title" | "body">>;
       consents: TableDef<
         Consent,
@@ -879,6 +934,7 @@ export type Database = {
     Functions: {
       current_app_role: { Args: Record<string, never>; Returns: AppRole };
       is_admin: { Args: Record<string, never>; Returns: boolean };
+      has_permission: { Args: { p_permission: string }; Returns: boolean };
       can_access_clinical: { Args: { p_patient_id: string }; Returns: boolean };
       can_write_clinical: { Args: { p_patient_id: string }; Returns: boolean };
       appointment_by_token: { Args: { p_token: string }; Returns: AppointmentByToken[] };

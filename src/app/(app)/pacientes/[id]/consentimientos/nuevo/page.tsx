@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { canSeeClinical, requireProfile } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
+import { canViewClinical } from "@/lib/permissions";
 import { fullName } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { getPatient } from "../../data";
@@ -11,7 +12,7 @@ export const metadata: Metadata = { title: "Firmar consentimiento" };
 export default async function NewConsentPage({ params }: PageProps<"/pacientes/[id]/consentimientos/nuevo">) {
   const profile = await requireProfile();
   const { id } = await params;
-  if (!canSeeClinical(profile.role)) redirect(`/pacientes/${id}`);
+  if (!(await canViewClinical(profile))) redirect(`/pacientes/${id}`);
 
   const supabase = await createClient();
   const [patient, { data: templates }] = await Promise.all([

@@ -3,6 +3,9 @@ import Link from "next/link";
 import { Card, PageHeader } from "@/components/ui";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import type { PermissionKey } from "@/lib/database.types";
+import { speiBanks } from "@/lib/spei";
+import { FeesForm, PermissionsForm, SpeiSettingsForm } from "./caja-forms";
 import { AppointmentTypeRow, TreatmentRow, BranchForm, ChairForm, ChairToggle, InviteForm, StaffRow } from "./forms";
 
 export const metadata: Metadata = { title: "Configuración" };
@@ -17,13 +20,21 @@ export default async function SettingsPage() {
     supabase.from("treatments").select("*").order("active", { ascending: false }).order("category").order("name"),
     supabase.from("appointment_type_dentists").select("type_id, dentist_id"),
   ]);
+  const [{ data: perms }, { data: fees }, { data: spei }, banks] = await Promise.all([
+    supabase.from("role_permissions").select("role, permission, allowed"),
+    supabase.from("payment_method_fees").select("*"),
+    supabase.from("spei_settings").select("*").maybeSingle(),
+    speiBanks(),
+  ]);
+  const granted = { reception: [] as PermissionKey[], dentist: [] as PermissionKey[] };
+  for (const p of perms ?? []) if (p.allowed) granted[p.role].push(p.permission);
   const dentists = (staff ?? []).filter((p) => p.role === "dentist" && p.active).map((p) => ({ id: p.id, full_name: p.full_name }));
   const assignedTo = (typeId: string) => (typeDentists ?? []).filter((x) => x.type_id === typeId).map((x) => x.dentist_id);
   const categories = [...new Set((treatments ?? []).map((t) => t.category))];
 
   return (
     <>
-      <PageHeader title="Configuración" description="Personal, roles, sucursales, sillones, tipos de cita y aranceles." />
+      <PageHeader title="Configuración" description="Personal, permisos, sucursales, sillones, tipos de cita, aranceles, comisiones por forma de pago y cuenta SPEI." />
 
       <div className="space-y-6">
         <Card>
@@ -40,6 +51,32 @@ export default async function SettingsPage() {
           <div className="divide-y divide-brand-100">
             {staff?.map((p) => <StaffRow key={p.id} person={p} isMe={p.id === me.id} />)}
           </div>
+        </Card>
+
+        <Card>
+          <h2 className="font-semibold text-brand-900">Permisos por rol</h2>
+          <p className="mb-4 mt-1 text-sm text-brand-700/80">
+            Decide qué módulos ve recepción y qué ven los odontólogos. Lo marcado de inicio es lo que cada rol tenía por defecto.
+          </p>
+          <PermissionsForm granted={granted} />
+        </Card>
+
+        <Card>
+          <h2 className="font-semibold text-brand-900">Comisiones por forma de pago</h2>
+          <p className="mb-4 mt-1 text-sm text-brand-700/80">
+            Lo que cobra el banco o la terminal por cada cobro (por ejemplo, tarjeta de crédito 3.5 % + IVA). Se descuenta en Caja y en
+            Finanzas como &quot;Comisiones bancarias&quot;. Los cambios aplican a los cobros nuevos.
+          </p>
+          <FeesForm fees={fees ?? []} />
+        </Card>
+
+        <Card>
+          <h2 className="font-semibold text-brand-900">Transferencias SPEI</h2>
+          <p className="mb-4 mt-1 text-sm text-brand-700/80">
+            Cuenta donde la clínica recibe transferencias. En Caja sólo se captura la clave de rastreo, la fecha y el banco del paciente, y
+            se valida el comprobante (CEP) directamente con Banxico.
+          </p>
+          <SpeiSettingsForm settings={spei ?? null} banks={banks} />
         </Card>
 
         <Card>

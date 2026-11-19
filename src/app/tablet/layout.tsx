@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LogoMark } from "@/components/logo";
-import { requireProfile } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 
 export const metadata: Metadata = { title: "Modo tablet" };
 
 export default async function TabletLayout({ children }: LayoutProps<"/tablet">) {
-  await requireProfile();
+  await requirePermission("tablet");
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-pink-50">
       <header className="flex items-center justify-between px-6 py-4">
