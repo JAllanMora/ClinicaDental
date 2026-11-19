@@ -5,6 +5,7 @@ import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { PermissionKey } from "@/lib/database.types";
 import { speiBanks } from "@/lib/spei";
+import { BotAdminForm } from "./bot-forms";
 import { FeesForm, PermissionsForm, SpeiSettingsForm } from "./caja-forms";
 import { AppointmentTypeRow, TreatmentRow, BranchForm, ChairForm, ChairToggle, InviteForm, StaffRow } from "./forms";
 
@@ -20,11 +21,12 @@ export default async function SettingsPage() {
     supabase.from("treatments").select("*").order("active", { ascending: false }).order("category").order("name"),
     supabase.from("appointment_type_dentists").select("type_id, dentist_id"),
   ]);
-  const [{ data: perms }, { data: fees }, { data: spei }, banks] = await Promise.all([
+  const [{ data: perms }, { data: fees }, { data: spei }, banks, { data: bot }] = await Promise.all([
     supabase.from("role_permissions").select("role, permission, allowed"),
     supabase.from("payment_method_fees").select("*"),
     supabase.from("spei_settings").select("*").maybeSingle(),
     speiBanks(),
+    supabase.from("whatsapp_settings").select("*").maybeSingle(),
   ]);
   const granted = { reception: [] as PermissionKey[], dentist: [] as PermissionKey[] };
   for (const p of perms ?? []) if (p.allowed) granted[p.role].push(p.permission);
@@ -60,6 +62,16 @@ export default async function SettingsPage() {
           </p>
           <PermissionsForm granted={granted} />
         </Card>
+
+        {bot && "admin_phones" in bot && (
+          <Card>
+            <h2 className="font-semibold text-brand-900">Bot de WhatsApp: doctores y administrador</h2>
+            <p className="mb-4 mt-1 text-sm text-brand-700/80">
+              A qué doctor van los pacientes nuevos y quién recibe las alertas. El resto de la configuración del bot está en WhatsApp.
+            </p>
+            <BotAdminForm settings={bot} dentists={dentists} />
+          </Card>
+        )}
 
         <Card>
           <h2 className="font-semibold text-brand-900">Comisiones por forma de pago</h2>

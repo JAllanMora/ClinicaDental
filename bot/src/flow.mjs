@@ -1,4 +1,8 @@
 import { addMinutes, clinicParts, dayLabel, nextDayStart, timeLabel, whenLabel } from "./dates.mjs";
+import { parseWhen, wantsAppointment } from "./when.mjs";
+
+const DAY_START = (day) => new Date(`${day}T00:00:00-06:00`).toISOString();
+const WISH_HINT = "También puedes escribirme el día y la hora que prefieras, por ejemplo: «el próximo martes a las 5 pm» o «20 de diciembre».";
 
 /**
  * Conversación del bot. No sabe nada de WhatsApp: recibe el teléfono y el texto
@@ -47,7 +51,9 @@ function clean(text) {
 }
 
 function choice(text) {
-  const m = clean(text).match(/^(\d{1,2})\b/);
+  // "2", "el 2", "opción 2"; no "10:30" ni "20/12" (eso es una hora o fecha).
+  const t = clean(text);
+  const m = t.match(/^(?:(?:el|la|opcion|numero|num) )?(\d{1,2})$/) ?? t.match(/^(\d{1,2})\b(?![:/]| de | ?(?:am|pm|a m|p m|hrs?|horas)\b)/);
   return m ? Number(m[1]) : null;
 }
 
@@ -83,6 +89,7 @@ export function createFlow(db, { now = () => new Date() } = {}) {
   }
 
   async function offerSlots(phone, ctx, from) {
+    if (ctx.wish) return offerForWish(phone, { ...ctx, wish: null }, ctx.wish);
     const settings = await db.settings();
     const earliest = addMinutes(now().toISOString(), settings.min_notice_minutes);
     const start = from && from > earliest ? from : earliest;
@@ -111,14 +118,111 @@ export function createFlow(db, { now = () => new Date() } = {}) {
       return `${i + 1}. ${capital(dayLabel(day))}, ${timeLabel(minutes)}${ctx.dentist ? "" : ` con ${s.dentist_name}`}`;
     });
     const withWhom = ctx.dentist ? ` con ${ctx.dentist.full_name}` : "";
-    return [[`Estos son los próximos horarios para ${ctx.type.name.toLowerCase()}${withWhom}:`, ...lines, "0. Ver más fechas"].join("\n")];
+    return [[`Estos son los próximos horarios para ${ctx.type.name.toLowerCase()}${withWhom}:`, ...lines, "0. Ver más fechas", "", WISH_HINT].join("\n")];
   }
 
-  /** Después de elegir el tipo: si hay varios doctores y está activado, pregunta con quién. */
+  /** Lista numerada de horarios para elegir (pick_slot). */
+  function slotList(phone, ctx, options, header, next) {
+    set(phone, "pick_slot", { ...ctx, options, next });
+    const lines = options.map((s, i) => {
+      const { day, minutes } = clinicParts(s.starts_at);
+      return `${i + 1}. ${capital(dayLabel(day))}, ${timeLabel(minutes)}${ctx.dentist && s.dentist_id === ctx.dentist.id ? "" : ` con ${s.dentist_name}`}`;
+    });
+    return [[header, ...lines, "0. Ver más fechas"].join("\n")];
+  }
+
+  /** El paciente escribió una fecha/hora: valida contra la agenda y confirma o propone lo más cercano. */
+  async function offerForWish(phone, ctx, wish) {
+    const settings = await db.settings();
+    const nowIso = now().toISOString();
+    const today = clinicParts(nowIso).day;
+    if (wish.error === "fecha_invalida") return [`No reconozco esa fecha. Escríbela así: «20 de diciembre» o «el próximo lunes a las 10».`];
+    if (wish.error === "pasada") return [`Esa fecha ya pasó. ¿Qué otro día te acomoda? (por ejemplo «mañana a las 5 pm»)`];
+
+    const earliest = addMinutes(nowIso, settings.min_notice_minutes);
+    const horizon = addMinutes(earliest, settings.days_ahead * 24 * 60);
+    const filters = { prefer: ctx.preferDentist ?? null, dentist: ctx.dentist?.id ?? null, type: ctx.type.id };
+    const dur = ctx.type.duration_minutes;
+    const fits = (s) => (wish.period === "manana" ? clinicParts(s.starts_at).minutes < 14 * 60 : wish.period === "tarde" ? clinicParts(s.starts_at).minutes >= 14 * 60 : true);
+    // Sin hora: hasta 6 horarios repartidos en el día (o la franja pedida).
+    const spread = (arr, n = 6) => (arr.length <= n ? arr : Array.from({ length: n }, (_, i) => arr[Math.floor((i * arr.length) / n)]));
+    const closest = (slots) =>
+      wish.minutes == null
+        ? spread(slots.filter(fits))
+        : [...slots]
+            .sort((a, b) => Math.abs(clinicParts(a.starts_at).minutes - wish.minutes) - Math.abs(clinicParts(b.starts_at).minutes - wish.minutes))
+            .slice(0, 5)
+            .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+
+    // Sólo hora ("a las 5"): los próximos días con ese horario libre.
+    if (!wish.day) {
+      const slots = await db.slots(dur, earliest, horizon, filters);
+      const exact = slots.filter((s) => wish.minutes == null ? fits(s) : clinicParts(s.starts_at).minutes === wish.minutes);
+      const byDay = [];
+      for (const s of exact) if (!byDay.some((x) => clinicParts(x.starts_at).day === clinicParts(s.starts_at).day)) byDay.push(s);
+      if (!byDay.length) return [`No tengo ese horario libre en los próximos ${settings.days_ahead} días.`, ...(await offerSlots(phone, ctx))];
+      const label = wish.minutes != null ? `a las ${timeLabel(wish.minutes)}` : wish.period === "manana" ? "en la mañana" : "en la tarde";
+      return slotList(phone, ctx, byDay.slice(0, 6), `Estos días tengo espacio ${label}:`, nextDayStart(byDay.slice(0, 6).at(-1).starts_at));
+    }
+
+    const dayStart = DAY_START(wish.day);
+    const dayEnd = nextDayStart(dayStart);
+    const when = dayLabel(wish.day);
+    if (dayStart >= horizon) {
+      return [`Por WhatsApp sólo agendo con ${settings.days_ahead} días de anticipación y el ${when} queda más lejos. Escribe otra fecha o 3 para que recepción te ayude.`];
+    }
+    if (dayEnd <= earliest) {
+      const hrs = Math.round(settings.min_notice_minutes / 60);
+      return [
+        `Para el ${when} ya no alcanzo a agendar (necesito al menos ${hrs} h de anticipación).`,
+        ...(await offerSlots(phone, ctx, earliest)),
+      ];
+    }
+
+    let slots = await db.slots(dur, dayStart > earliest ? dayStart : earliest, dayEnd, filters);
+    let note = "";
+    // Con su doctor no hay espacio ese día: busca con los demás que atienden ese tipo de cita.
+    if (!slots.length && ctx.dentist) {
+      const others = await db.slots(dur, dayStart > earliest ? dayStart : earliest, dayEnd, { ...filters, dentist: null });
+      if (others.length) {
+        slots = others;
+        note = `${ctx.dentist.full_name} no tiene espacio ese día, pero sí otros doctores. `;
+      }
+    }
+
+    if (!slots.length) {
+      const works = await db.workingWeekdays(ctx.dentist ? [ctx.dentist.id] : null);
+      const wd = new Date(`${wish.day}T12:00:00Z`).getUTCDay();
+      const why = !works.has(wd) ? `El ${when} no hay consulta${ctx.dentist ? ` con ${ctx.dentist.full_name}` : ""}.` : `El ${when} ya no tengo horarios libres.`;
+      return [why, ...(await offerSlots(phone, ctx, dayEnd))];
+    }
+
+    if (wish.minutes != null) {
+      const exact = slots.find((s) => clinicParts(s.starts_at).minutes === wish.minutes);
+      if (exact) {
+        set(phone, "confirm_slot", { ...ctx, slot: exact });
+        return [`${note}¡Sí tengo espacio! ¿Te agendo ${ctx.type.name.toLowerCase()} el ${whenLabel(exact.starts_at)} con ${exact.dentist_name}?\n1. Sí\n2. Elegir otro horario`];
+      }
+      return slotList(phone, ctx, closest(slots), `${note}A las ${timeLabel(wish.minutes)} del ${when} ya no hay lugar. Lo más cercano ese día:`, dayEnd);
+    }
+    const options = closest(slots);
+    if (!options.length) return [`El ${when} no tengo horarios ${wish.period === "manana" ? "en la mañana" : "en la tarde"}.`, ...slotList(phone, ctx, slots.slice(0, 6), `Ese día tengo:`, dayEnd)];
+    return slotList(phone, ctx, options, `${note}Horarios libres el ${when}${wish.period ? (wish.period === "manana" ? " en la mañana" : " en la tarde") : ""}:`, dayEnd);
+  }
+
+  /**
+   * Después de elegir el tipo: si el paciente ya tiene doctor (expediente) va con él;
+   * si es de primera vez, con el doctor configurado; si no, pregunta con quién.
+   */
   async function chooseDentist(phone, ctx) {
     const settings = await db.settings();
-    if (!settings.ask_dentist) return offerSlots(phone, ctx);
     const dentists = await db.dentistsFor(ctx.type.id);
+    const fixed =
+      (settings.keep_own_dentist && ctx.ownDentist && dentists.find((d) => d.id === ctx.ownDentist.id)) ||
+      (!ctx.ownDentist && settings.first_visit_dentist_id && dentists.find((d) => d.id === settings.first_visit_dentist_id)) ||
+      null;
+    if (fixed) return offerSlots(phone, { ...ctx, dentist: fixed, dentists, preferDentist: fixed.id });
+    if (!settings.ask_dentist) return offerSlots(phone, ctx);
     if (dentists.length < 2) return offerSlots(phone, { ...ctx, dentist: null });
     // El doctor de cabecera del paciente va primero.
     const sorted = [...dentists].sort((a, b) => (b.id === ctx.preferDentist) - (a.id === ctx.preferDentist));
@@ -142,7 +246,14 @@ export function createFlow(db, { now = () => new Date() } = {}) {
       set(phone, "menu", {});
       return ["Por ahora no puedo agendar por aquí. Escribe 3 y recepción te ayuda."];
     }
-    const ctx = { patientId: patient?.id ?? null, patientName: patient?.first_name ?? null, preferDentist: patient?.primary_dentist_id ?? null, ...extra };
+    const ownDentist = patient ? await db.ownDentist(patient) : null;
+    const ctx = {
+      patientId: patient?.id ?? null,
+      patientName: patient?.first_name ?? null,
+      preferDentist: ownDentist?.id ?? patient?.primary_dentist_id ?? null,
+      ownDentist,
+      ...extra,
+    };
     if (!patient) {
       set(phone, "ask_name", ctx);
       return ["Con gusto. ¿A nombre de quién es la cita? Escribe nombre y apellido."];
@@ -242,6 +353,9 @@ export function createFlow(db, { now = () => new Date() } = {}) {
     if (!session || session.step === "idle" || session.step === "human") {
       const reply = RESET_WORDS.has(t) ? null : await reminderReply(phone, patient, text);
       if (reply) return reply;
+      // «Quiero una cita el viernes a las 10»: directo a agendar con esa fecha.
+      const wish = wantsAppointment(text) ? parseWhen(text, now().toISOString()) : null;
+      if (wish || (wantsAppointment(text) && !RESET_WORDS.has(t))) return startBooking(phone, patient, wish ? { wish } : {});
       set(phone, "menu", {});
       const hello = settings.welcome_message.replace("{nombre}", patient ? ` ${patient.first_name}` : "");
       return [`${hello}\n\n${menuText(null)}`];
@@ -255,13 +369,18 @@ export function createFlow(db, { now = () => new Date() } = {}) {
         if (n === 1) return startBooking(phone, patient);
         if (n === 2) return listAppointments(phone, patient);
         if (n === 3) return handoff(phone, patient, text);
+        {
+          const wish = parseWhen(text, now().toISOString());
+          if (wish && (wish.day || wish.minutes != null || wantsAppointment(text))) return startBooking(phone, patient, { wish });
+        }
         return [`Responde con 1, 2 o 3.\n\n${menuText(null)}`];
 
       case "ask_name": {
         const name = splitName(String(text));
         if (!name || name.firstName.length > 60) return ["Escribe tu nombre y apellido, por ejemplo: Ana Pérez"];
-        const created = await db.createPatient({ firstName: title(name.firstName), lastName: title(name.lastName), phone });
-        return askType(phone, { ...data, patientId: created.id, patientName: created.first_name }, settings.types);
+        // Paciente de primera vez: su expediente queda con el doctor configurado para primeras visitas.
+        const created = await db.createPatient({ firstName: title(name.firstName), lastName: title(name.lastName), phone, primaryDentistId: settings.first_visit_dentist_id ?? null });
+        return askType(phone, { ...data, patientId: created.id, patientName: created.first_name, ownDentist: null }, settings.types);
       }
 
       case "pick_type": {
@@ -279,6 +398,9 @@ export function createFlow(db, { now = () => new Date() } = {}) {
 
       case "pick_slot": {
         if (n === 0) return offerSlots(phone, data, data.next);
+        // También acepta una fecha escrita: «el viernes a las 10», «20 de diciembre».
+        const wish = n === null ? parseWhen(text, now().toISOString()) : null;
+        if (wish) return offerForWish(phone, data, wish);
         const slot = n ? data.options[n - 1] : null;
         if (!slot) return [`Responde con un número del 1 al ${data.options.length}, o 0 para ver más fechas.`];
         set(phone, "confirm_slot", { ...data, slot });

@@ -311,6 +311,14 @@ export type WhatsappSettings = {
   welcome_message: string;
   handoff_message: string;
   ask_dentist: boolean;
+  /** Doctor que recibe a los pacientes de primera vez. */
+  first_visit_dentist_id: string | null;
+  /** Los pacientes con expediente agendan con su doctor sin que se les pregunte. */
+  keep_own_dentist: boolean;
+  /** Números (10 dígitos) que reciben alertas y pueden registrar inventario por WhatsApp. */
+  admin_phones: string[];
+  alerts_enabled: boolean;
+  alert_hour: number;
   updated_at: string;
 };
 

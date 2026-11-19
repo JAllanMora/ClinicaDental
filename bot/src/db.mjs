@@ -23,7 +23,7 @@ export function createDb({ url, serviceKey, humanPauseHours = 4 }) {
       return rows[0] ?? null;
     },
 
-    async createPatient({ firstName, lastName, phone }) {
+    async createPatient({ firstName, lastName, phone, primaryDentistId = null }) {
       const branch = must(await sb.from("branches").select("id").order("created_at").limit(1)).at(0);
       return must(
         await sb
@@ -33,12 +33,85 @@ export function createDb({ url, serviceKey, humanPauseHours = 4 }) {
             last_name: lastName,
             phone,
             branch_id: branch?.id ?? null,
+            primary_dentist_id: primaryDentistId,
             contact_preference: "whatsapp",
             notes: "Registrado por el bot de WhatsApp",
           })
           .select("*")
           .single(),
       );
+    },
+
+    /** El doctor que ya lleva el expediente: el de cabecera, o el de su última cita, o el de su equipo de atención. */
+    async ownDentist(patient) {
+      let id = patient.primary_dentist_id ?? null;
+      if (!id) {
+        const last = must(
+          await sb.from("appointments").select("dentist_id").eq("patient_id", patient.id).not("status", "in", "(cancelada)").order("starts_at", { ascending: false }).limit(1),
+        );
+        id = last[0]?.dentist_id ?? null;
+      }
+      if (!id) id = must(await sb.from("patient_care_team").select("dentist_id").eq("patient_id", patient.id).limit(1))[0]?.dentist_id ?? null;
+      if (!id) return null;
+      return must(await sb.from("profiles").select("id, full_name").eq("id", id).eq("active", true).eq("role", "dentist")).at(0) ?? null;
+    },
+
+    async dentist(id) {
+      if (!id) return null;
+      return must(await sb.from("profiles").select("id, full_name").eq("id", id).eq("active", true).eq("role", "dentist")).at(0) ?? null;
+    },
+
+    /** Días de la semana (0 = domingo) en que hay consulta, de todos o de ciertos doctores. */
+    async workingWeekdays(dentistIds = null) {
+      let q = sb.from("working_hours").select("weekday, dentist_id");
+      if (dentistIds?.length) q = q.in("dentist_id", dentistIds);
+      return new Set(must(await q).map((r) => r.weekday));
+    },
+
+    // ---- Administrador -------------------------------------------------------
+    async adminProfile(phone) {
+      const admins = must(await sb.from("profiles").select("id, full_name, phone").eq("role", "admin").eq("active", true));
+      return admins.find((a) => a.phone && String(a.phone).replace(/\D/g, "").slice(-10) === String(phone).slice(-10)) ?? null;
+    },
+
+    /** Artículos activos con existencia, mínimo y caducidad más próxima. */
+    async inventory() {
+      const [items, stock] = await Promise.all([
+        sb.from("inventory_items").select("id, name, unit, category, min_stock").eq("active", true).order("name").then(must),
+        sb.from("inventory_stock").select("item_id, stock, next_expiry, expired_qty").then(must),
+      ]);
+      const byId = new Map(stock.map((s) => [s.item_id, s]));
+      return items.map((i) => {
+        const s = byId.get(i.id);
+        return { ...i, min_stock: Number(i.min_stock), stock: Number(s?.stock ?? 0), next_expiry: s?.next_expiry ?? null, expired_qty: Number(s?.expired_qty ?? 0) };
+      });
+    },
+
+    async inventoryIn({ itemId, qty, actorId = null, lot = null, expires = null, cost = null, reason }) {
+      return must(await sb.rpc("bot_inventory_in", { p_item: itemId, p_qty: qty, p_actor: actorId, p_lot: lot, p_expires: expires, p_cost: cost, p_reason: reason }));
+    },
+
+    async lateLabOrders(today) {
+      return must(
+        await sb
+          .from("lab_orders")
+          .select("id, folio, work_type, due_date, status, patient:patients(first_name, last_name), lab:labs(name)")
+          .in("status", ["por_enviar", "enviado", "en_proceso", "ajuste"])
+          .lt("due_date", today)
+          .order("due_date"),
+      );
+    },
+
+    async sentAlerts() {
+      return must(await sb.from("bot_admin_alerts").select("key, last_sent_at"));
+    },
+
+    async markAlerts(rows) {
+      if (rows.length) must(await sb.from("bot_admin_alerts").upsert(rows.map((r) => ({ ...r, last_sent_at: new Date().toISOString() })), { onConflict: "key" }));
+    },
+
+    async clearAlerts(keys) {
+      if (keys.length) must(await sb.from("bot_admin_alerts").delete().in("key", keys));
     },
 
     /** Horarios libres. `type` limita a los doctores de ese tipo de cita; `dentist` a uno solo. */

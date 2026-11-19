@@ -20,10 +20,12 @@ import { loadConfig } from "./config.mjs";
 import { createDb } from "./db.mjs";
 import { clinicParts } from "./dates.mjs";
 import { createFlow, normalizePhone } from "./flow.mjs";
+import { createAdminFlow, runAdminAlerts } from "./admin.mjs";
 
 const config = loadConfig();
 const db = createDb({ url: config.supabaseUrl, serviceKey: config.serviceKey, humanPauseHours: config.humanPauseHours });
 const flow = createFlow(db);
+const adminFlow = createAdminFlow(db);
 const logger = pino({ level: process.env.BOT_LOG_LEVEL ?? "warn" });
 const log = (...args) => console.log(new Date().toLocaleTimeString("es-MX"), ...args);
 
@@ -92,7 +94,10 @@ async function onMessage(msg) {
   try {
     await sock.readMessages([msg.key]);
     await sock.sendPresenceUpdate("composing", jid);
-    const replies = await flow.handle(phone, text);
+    // Números de administrador: entradas de inventario y alertas; lo demás sigue al menú normal.
+    const settings = await db.settings();
+    const isAdmin = (settings.admin_phones ?? []).includes(normalizePhone(phone));
+    const replies = (isAdmin && (await adminFlow.handle(normalizePhone(phone), text))) || (await flow.handle(phone, text));
     for (const body of replies) {
       await sock.sendMessage(jid, { text: body });
       log(`→ ${normalizePhone(phone)}: ${body.split("\n")[0]}`);
@@ -129,6 +134,35 @@ async function flushQueue() {
       await db.markNotification(n.id, { status: "fallido", error: e.message }).catch(() => {});
     }
   }
+}
+
+/** Envía un mensaje a un número de 10 dígitos (México) o internacional. */
+async function sendTo(phone, body) {
+  const digits = String(phone).replace(/\D/g, "");
+  const [found] = await sock.onWhatsApp(digits.length === 10 ? `52${digits}` : digits);
+  if (!found?.exists) throw new Error("El número no tiene WhatsApp");
+  await sock.sendMessage(found.jid, { text: body });
+  await db.log({ phone: normalizePhone(digits), direction: "saliente", body });
+}
+
+/**
+ * Alertas para los administradores: un resumen diario a la hora configurada y, el resto del día,
+ * sólo las alertas nuevas. Una alerta ya avisada no se repite hasta que se resuelve y vuelve a aparecer.
+ */
+let lastAlertCheck = 0;
+async function adminAlerts() {
+  if (!sock?.user || Date.now() - lastAlertCheck < 5 * 60_000) return;
+  lastAlertCheck = Date.now();
+  const settings = await db.settings();
+  const recipients = (settings.admin_phones ?? []).filter((p) => allowed(p));
+  if (!settings.alerts_enabled || !recipients.length) return;
+
+  const body = await runAdminAlerts(db, {
+    recipients,
+    alertHour: settings.alert_hour,
+    send: (p, text) => sendTo(p, text).catch((e) => log(`No pude avisar a ${p}:`, e.message)),
+  });
+  if (body) log("→ alertas a administradores");
 }
 
 /** Una vez al día, a la hora configurada, pide a la app que prepare los recordatorios. */
@@ -188,6 +222,7 @@ async function connect() {
 setInterval(() => {
   flushQueue().catch((e) => log("Cola:", e.message));
   dailyReminders().catch(() => {});
+  adminAlerts().catch((e) => log("Alertas:", e.message));
   if (sock?.user) db.setStatus({ last_seen: new Date().toISOString() }).catch(() => {});
 }, 20_000);
 
