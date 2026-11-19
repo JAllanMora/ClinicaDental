@@ -1,0 +1,19 @@
+import { AppNav } from "@/components/app-nav";
+import { ROLE_LABELS, requireProfile } from "@/lib/auth";
+import { getPermissions } from "@/lib/permissions";
+
+export default async function AppLayout({ children }: LayoutProps<"/">) {
+  const profile = await requireProfile();
+  const perms = [...(await getPermissions())];
+
+  return (
+    <div className="min-h-screen lg:flex">
+      <div className="contents print:hidden">
+        <AppNav role={profile.role} perms={perms} name={profile.full_name || profile.email || ""} roleLabel={ROLE_LABELS[profile.role]} />
+      </div>
+      <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10 print:p-0">
+        <div className="mx-auto max-w-6xl">{children}</div>
+      </main>
+    </div>
+  );
+}

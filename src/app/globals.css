@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+/* Paleta Clínica Dental Villa San Juan */
+@theme {
+  --color-brand-50: #faf5fb;
+  --color-brand-100: #f3e8f7;
+  --color-brand-200: #e7d1ef;
+  --color-brand-300: #d4aee0;
+  --color-brand-400: #bb7ec9;
+  --color-brand-500: #a0449a;
+  --color-brand-600: #8a3685;
+  --color-brand-700: #722b6e;
+  --color-brand-800: #5e1a5a;
+  --color-brand-900: #4a1546;
+  --color-brand-950: #2d0a2a;
+
+  --color-magenta-500: #c2187a;
+  --color-magenta-600: #a51468;
+
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --background: #fbf8fc;
+  --foreground: #2d0a2a;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Campos de formulario consistentes */
+@layer components {
+  .field {
+    @apply block w-full rounded-lg border border-brand-200 bg-white px-3 py-2 text-sm text-brand-950 shadow-sm outline-none transition placeholder:text-brand-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:bg-brand-50;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium text-brand-800;
+  }
+}
+
+/* Impresión: sólo el documento */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    box-shadow: none;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
