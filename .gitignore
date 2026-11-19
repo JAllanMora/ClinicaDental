@@ -52,3 +52,5 @@ bot/qr.html
 bot/.env
 bot/*.log
 dev-server.log
+bot/handled.json
+bot/bot.pid

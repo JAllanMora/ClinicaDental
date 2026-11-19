@@ -68,6 +68,56 @@ export function createDb({ url, serviceKey, humanPauseHours = 4 }) {
       return new Set(must(await q).map((r) => r.weekday));
     },
 
+    // ---- Seguimientos (recall) -----------------------------------------------
+
+    /** Seguimientos por enviar: vencidos sin enviar, o enviados una vez hace `secondAfterDays` días sin respuesta. */
+    async dueRecalls(today, secondBeforeIso) {
+      const sel =
+        "id, patient_id, dentist_id, due_on, reason, appointment_type_id, status, sent_count, sent_at, patient:patients(id, first_name, phone, active), dentist:profiles!patient_recalls_dentist_id_fkey(id, full_name)";
+      const [first, second] = await Promise.all([
+        sb.from("patient_recalls").select(sel).eq("status", "pendiente").lte("due_on", today).order("due_on").limit(50),
+        sb.from("patient_recalls").select(sel).eq("status", "enviado").eq("sent_count", 1).lte("sent_at", secondBeforeIso).order("sent_at").limit(50),
+      ]);
+      return [...must(first), ...must(second)];
+    },
+
+    /** Próxima cita activa del paciente (con ese doctor, si se indica). */
+    async futureAppointment(patientId, dentistId = null) {
+      let q = sb.from("appointments").select("id, starts_at").eq("patient_id", patientId).in("status", ["programada", "confirmada"]).gt("starts_at", new Date().toISOString());
+      if (dentistId) q = q.eq("dentist_id", dentistId);
+      return must(await q.order("starts_at").limit(1)).at(0) ?? null;
+    },
+
+    async updateRecall(id, fields) {
+      must(await sb.from("patient_recalls").update(fields).eq("id", id));
+    },
+
+    /** El seguimiento que se le envió al paciente y sigue abierto (para contestar «sí» / «no»). */
+    async openRecall(patientId, sinceIso) {
+      return (
+        must(
+          await sb
+            .from("patient_recalls")
+            .select("id, dentist_id, reason, appointment_type_id, dentist:profiles!patient_recalls_dentist_id_fkey(id, full_name)")
+            .eq("patient_id", patientId)
+            .eq("status", "enviado")
+            .gte("sent_at", sinceIso)
+            .order("sent_at", { ascending: false })
+            .limit(1),
+        ).at(0) ?? null
+      );
+    },
+
+    /**
+     * El paciente agendó: cierra sus seguimientos ya enviados (o rechazados) y los que vencen pronto.
+     * Uno que vence en meses no se cierra por una cita de otra cosa.
+     */
+    async recallBooked(patientId, appointmentId, soonDay) {
+      const fields = { status: "agendado", booked_appointment_id: appointmentId, responded_at: new Date().toISOString() };
+      must(await sb.from("patient_recalls").update(fields).eq("patient_id", patientId).in("status", ["enviado", "declinado"]));
+      must(await sb.from("patient_recalls").update(fields).eq("patient_id", patientId).eq("status", "pendiente").lte("due_on", soonDay));
+    },
+
     // ---- Administrador -------------------------------------------------------
     async adminProfile(phone) {
       const admins = must(await sb.from("profiles").select("id, full_name, phone").eq("role", "admin").eq("active", true));
@@ -198,6 +248,10 @@ export function createDb({ url, serviceKey, humanPauseHours = 4 }) {
       must(
         await sb.from("whatsapp_messages").update({ attended_at: new Date().toISOString() }).eq("phone", phone).eq("needs_attention", true).is("attended_at", null),
       );
+    },
+
+    async status() {
+      return must(await sb.from("whatsapp_status").select("state, connect_requested_at").eq("id", true).maybeSingle());
     },
 
     async setStatus(fields) {

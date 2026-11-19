@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import type { WhatsappSettings } from "@/lib/database.types";
 import { Alert, Button, Field } from "@/components/ui";
-import { markAttended, saveWhatsappSettings } from "./actions";
+import { markAttended, requestConnect, saveWhatsappSettings } from "./actions";
 
 /** Vuelve a pedir la página cada tantos segundos (estado de la conexión y chats nuevos). */
 export function AutoRefresh({ seconds }: { seconds: number }) {
@@ -86,5 +86,29 @@ export function SettingsForm({ settings, types }: { settings: WhatsappSettings; 
         {pending ? "Guardando…" : "Guardar"}
       </Button>
     </form>
+  );
+}
+
+export function ConnectButton({ label = "Conectar WhatsApp" }: { label?: string }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="space-y-2">
+      {error && <Alert>{error}</Alert>}
+      <Button
+        data-testid="whatsapp-connect"
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            const r = await requestConnect();
+            setError(r.error ?? null);
+            router.refresh();
+          })
+        }
+      >
+        {pending ? "Pidiendo conexión…" : label}
+      </Button>
+    </div>
   );
 }

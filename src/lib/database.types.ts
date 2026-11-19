@@ -168,6 +168,28 @@ export type ClinicalNote = {
   created_at: string;
 };
 
+export type RecallStatus = "pendiente" | "enviado" | "agendado" | "declinado" | "cancelado";
+
+/** Seguimiento: el bot le recuerda al paciente regresar y le ofrece agendar. */
+export type PatientRecall = {
+  id: string;
+  patient_id: string;
+  dentist_id: string | null;
+  note_id: string | null;
+  due_on: string;
+  reason: string;
+  appointment_type_id: string | null;
+  status: RecallStatus;
+  sent_count: number;
+  sent_at: string | null;
+  responded_at: string | null;
+  booked_appointment_id: string | null;
+  cancel_reason: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ConsentTemplate = {
   id: string;
   title: string;
@@ -328,6 +350,10 @@ export type WhatsappStatus = {
   qr: string | null;
   phone: string | null;
   last_seen: string | null;
+  /** Latido del programa del bot (aunque WhatsApp no esté vinculado). */
+  bot_seen_at: string | null;
+  /** La app pidió conectar (botón «Conectar»). */
+  connect_requested_at: string | null;
   updated_at: string;
 };
 
@@ -761,6 +787,17 @@ export type Database = {
         Partial<PeriodontalExam> & Pick<PeriodontalExam, "patient_id">,
         [PatientFk<"periodontal_exams">]
       >;
+      patient_recalls: TableDef<
+        PatientRecall,
+        Partial<PatientRecall> & Pick<PatientRecall, "patient_id" | "due_on" | "reason">,
+        [
+          PatientFk<"patient_recalls">,
+          Fk<"patient_recalls", "dentist_id", "profiles">,
+          Fk<"patient_recalls", "appointment_type_id", "appointment_types">,
+          Fk<"patient_recalls", "booked_appointment_id", "appointments">,
+          Fk<"patient_recalls", "note_id", "clinical_notes">,
+        ]
+      >;
       clinical_notes: TableDef<
         ClinicalNote,
         Partial<ClinicalNote> & Pick<ClinicalNote, "patient_id" | "procedure">,
@@ -943,6 +980,7 @@ export type Database = {
       current_app_role: { Args: Record<string, never>; Returns: AppRole };
       is_admin: { Args: Record<string, never>; Returns: boolean };
       has_permission: { Args: { p_permission: string }; Returns: boolean };
+      request_whatsapp_connect: { Args: Record<string, never>; Returns: undefined };
       can_access_clinical: { Args: { p_patient_id: string }; Returns: boolean };
       can_write_clinical: { Args: { p_patient_id: string }; Returns: boolean };
       appointment_by_token: { Args: { p_token: string }; Returns: AppointmentByToken[] };

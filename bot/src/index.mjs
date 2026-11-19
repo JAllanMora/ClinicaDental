@@ -10,7 +10,7 @@ import makeWASocket, {
   useMultiFileAuthState,
 } from "baileys";
 import { exec } from "node:child_process";
-import { rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import QRCode from "qrcode";
@@ -21,6 +21,8 @@ import { createDb } from "./db.mjs";
 import { clinicParts } from "./dates.mjs";
 import { createFlow, normalizePhone } from "./flow.mjs";
 import { createAdminFlow, runAdminAlerts } from "./admin.mjs";
+import { runRecalls } from "./recalls.mjs";
+import { LATE_AFTER_SECONDS, LATE_PREFIX, handledStore, msgSeconds, pickPending } from "./catchup.mjs";
 
 const config = loadConfig();
 const db = createDb({ url: config.supabaseUrl, serviceKey: config.serviceKey, humanPauseHours: config.humanPauseHours });
@@ -78,14 +80,21 @@ function textOf(message) {
   );
 }
 
-async function onMessage(msg) {
+/** Ids de mensajes ya contestados (sobrevive reinicios): nunca se contesta dos veces el mismo. */
+const handled = handledStore(resolve(dirname(fileURLToPath(import.meta.url)), "../handled.json"));
+const isChat = (jid) => !isJidGroup(jid) && !isJidBroadcast(jid) && !isJidNewsletter(jid) && !jid.endsWith("@status");
+
+async function onMessage(msg, { late = false } = {}) {
   const jid = msg.key.remoteJid;
-  if (!jid || isJidGroup(jid) || isJidBroadcast(jid) || isJidNewsletter(jid)) return;
+  if (!jid || !isChat(jid)) return;
   if (msg.key.fromMe) return;
+  if (handled.has(msg.key.id)) return;
   const text = textOf(msg.message);
   const phone = await senderPhone(msg.key);
   if (!phone) return log("No pude leer el número de", jid);
   if (!allowed(phone)) return log(`Ignoro ${normalizePhone(phone)} (modo prueba)`);
+  handled.add(msg.key.id);
+  if (late) log(`↺ pendiente de ${normalizePhone(phone)} (llegó con el bot apagado)`);
   if (text == null) {
     await sock.sendMessage(jid, { text: "Por ahora sólo entiendo mensajes de texto. Escribe menú para ver las opciones." });
     return;
@@ -97,7 +106,8 @@ async function onMessage(msg) {
     // Números de administrador: entradas de inventario y alertas; lo demás sigue al menú normal.
     const settings = await db.settings();
     const isAdmin = (settings.admin_phones ?? []).includes(normalizePhone(phone));
-    const replies = (isAdmin && (await adminFlow.handle(normalizePhone(phone), text))) || (await flow.handle(phone, text));
+    const replies = [...((isAdmin && (await adminFlow.handle(normalizePhone(phone), text))) || (await flow.handle(phone, text)))];
+    if (late && replies.length) replies[0] = `${LATE_PREFIX} ${replies[0]}`;
     for (const body of replies) {
       await sock.sendMessage(jid, { text: body });
       log(`→ ${normalizePhone(phone)}: ${body.split("\n")[0]}`);
@@ -108,6 +118,25 @@ async function onMessage(msg) {
   } finally {
     await sock.sendPresenceUpdate("paused", jid).catch(() => {});
   }
+}
+
+/**
+ * Mensajes pendientes de cuando el bot estuvo apagado: se juntan unos segundos (llegan en tandas)
+ * y se contesta sólo el último de cada chat, si nadie respondió después y es de las últimas horas.
+ */
+let pending = [];
+let pendingTimer = null;
+function queuePending(msg) {
+  if (!msg?.key?.remoteJid) return;
+  pending.push(msg);
+  clearTimeout(pendingTimer);
+  pendingTimer = setTimeout(() => flushPending().catch((e) => log("Pendientes:", e.message)), 5000);
+}
+async function flushPending() {
+  const batch = pending;
+  pending = [];
+  const picked = pickPending(batch, { nowSec: Date.now() / 1000, maxHours: config.pendingHours, handled, isChat });
+  for (const msg of picked) await onMessage(msg, { late: true });
 }
 
 /** Envía los recordatorios que el sistema dejó en cola (notifications "pendiente" por WhatsApp). */
@@ -146,6 +175,26 @@ async function sendTo(phone, body) {
 }
 
 /**
+ * Seguimientos (el doctor pidió recordarle al paciente regresar): se revisan cada hora entre la hora
+ * de recordatorios y las 7 p. m. Cada seguimiento cambia de estado al enviarse, así que no se repite.
+ */
+let lastRecallCheck = 0;
+async function recallReminders() {
+  if (!sock?.user || Date.now() - lastRecallCheck < 60 * 60_000) return;
+  const { minutes } = clinicParts(new Date().toISOString());
+  if (minutes < config.reminderHour * 60 || minutes >= 19 * 60) return;
+  lastRecallCheck = Date.now();
+  const summary = await runRecalls(db, {
+    allowed,
+    send: async (phone, body) => {
+      await sendTo(phone, body);
+      await new Promise((r) => setTimeout(r, 3000 + Math.random() * 4000)); // ritmo humano
+    },
+  });
+  if (summary.enviados || summary.agendados) log("Seguimientos:", JSON.stringify(summary));
+}
+
+/**
  * Alertas para los administradores: un resumen diario a la hora configurada y, el resto del día,
  * sólo las alertas nuevas. Una alerta ya avisada no se repite hasta que se resuelve y vuelve a aparecer.
  */
@@ -181,7 +230,13 @@ async function dailyReminders() {
   }
 }
 
+/** ¿Hay una sesión de WhatsApp vinculada guardada? Sin ella, el bot espera a que pidan «Conectar» en la app. */
+const hasSession = () => existsSync(resolve(config.authDir, "creds.json"));
+let connecting = false;
+
 async function connect() {
+  if (connecting) return;
+  connecting = true;
   const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
   const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: undefined }));
   sock = makeWASocket({ auth: state, version, logger, browser: ["Clínica Villa San Juan", "Chrome", "1.0"], markOnlineOnConnect: false });
@@ -202,38 +257,100 @@ async function connect() {
     }
     if (connection === "close") {
       const code = lastDisconnect?.error?.output?.statusCode;
+      sock = null;
+      connecting = false;
       await db.setStatus({ state: "desconectado", qr: null }).catch(() => {});
       if (code === DisconnectReason.loggedOut) {
-        log("Se cerró la sesión desde el teléfono. Borro la sesión guardada y pido un QR nuevo.");
+        log("Se cerró la sesión desde el teléfono. Borro la sesión guardada; para vincular otra vez presiona «Conectar» en la app.");
         rmSync(config.authDir, { recursive: true, force: true });
-      } else {
-        log(`Conexión cerrada (${code ?? "sin código"}). Reconectando…`);
+        return;
       }
+      if (!state.creds.registered) {
+        log("Nadie escaneó el código a tiempo. Presiona «Conectar» en la app para generar otro.");
+        return;
+      }
+      log(`Conexión cerrada (${code ?? "sin código"}). Reconectando…`);
       setTimeout(connect, 3000);
     }
   });
 
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
-    if (type !== "notify") return;
-    for (const msg of messages) await onMessage(msg);
+    const nowSec = Date.now() / 1000;
+    for (const msg of messages) {
+      // Lo que llegó con el bot apagado (append, o notify con hora vieja) se junta y se revisa por chat.
+      if (type !== "notify" || nowSec - msgSeconds(msg) > LATE_AFTER_SECONDS) queuePending(msg);
+      else await onMessage(msg);
+    }
+  });
+  sock.ev.on("messaging-history.set", ({ messages }) => {
+    for (const msg of messages ?? []) queuePending(msg);
   });
 }
 
 setInterval(() => {
   flushQueue().catch((e) => log("Cola:", e.message));
   dailyReminders().catch(() => {});
+  recallReminders().catch((e) => log("Seguimientos:", e.message));
   adminAlerts().catch((e) => log("Alertas:", e.message));
-  if (sock?.user) db.setStatus({ last_seen: new Date().toISOString() }).catch(() => {});
+  const now = new Date().toISOString();
+  // Latido del programa (aunque WhatsApp no esté vinculado): la app sabe si la computadora está prendida.
+  db.setStatus(sock?.user ? { bot_seen_at: now, last_seen: now } : { bot_seen_at: now }).catch(() => {});
 }, 20_000);
 
-process.on("SIGINT", async () => {
-  await db.setStatus({ state: "desconectado", qr: null }).catch(() => {});
+/** Botón «Conectar» de la app: si no hay conexión, conecta (con sesión) o genera el código QR. */
+let lastConnectRequest = Date.now() - 10 * 60_000; // una petición de hace poco (con la PC apagada) también cuenta
+setInterval(async () => {
+  try {
+    const status = await db.status();
+    const requested = status?.connect_requested_at ? new Date(status.connect_requested_at).getTime() : 0;
+    if (requested <= lastConnectRequest) return;
+    lastConnectRequest = requested;
+    if (sock || connecting) return log("Piden conectar: ya hay una conexión en curso.");
+    log("Piden conectar desde la app.");
+    await db.setStatus({ bot_seen_at: new Date().toISOString() }).catch(() => {});
+    connect().catch((e) => {
+      connecting = false;
+      log("No pude conectar:", e.message);
+    });
+  } catch {
+    /* sin internet: se reintenta */
+  }
+}, 5_000);
+
+/** Una sola copia del bot por computadora (si arranca dos veces, dos sesiones se pelean el número). */
+const LOCK = resolve(dirname(fileURLToPath(import.meta.url)), "../bot.pid");
+try {
+  const other = Number(readFileSync(LOCK, "utf8"));
+  if (other && other !== process.pid) {
+    process.kill(other, 0); // lanza si ya no existe
+    console.log(`El bot ya está corriendo (proceso ${other}). Cierro esta copia.`);
+    process.exit(0);
+  }
+} catch {
+  /* no hay otra copia */
+}
+writeFileSync(LOCK, String(process.pid));
+const releaseLock = () => {
+  try {
+    if (readFileSync(LOCK, "utf8") === String(process.pid)) rmSync(LOCK);
+  } catch {
+    /* ya no está */
+  }
+};
+process.on("exit", releaseLock);
+
+async function shutdown() {
+  await db.setStatus({ state: "desconectado", qr: null, bot_seen_at: null }).catch(() => {});
   process.exit(0);
-});
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
 
 log(
   config.testMode
     ? `Iniciando bot de WhatsApp en MODO PRUEBA (sólo atiende a: ${config.testNumbers.join(", ") || "nadie"}).`
     : "Iniciando bot de WhatsApp en modo producción.",
 );
-connect();
+db.setStatus({ state: "desconectado", qr: null, bot_seen_at: new Date().toISOString() }).catch(() => {});
+if (hasSession()) connect();
+else log("No hay WhatsApp vinculado. Presiona «Conectar» en la app (WhatsApp) para ver el código QR.");

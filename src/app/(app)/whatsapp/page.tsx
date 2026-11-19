@@ -6,20 +6,11 @@ import { requirePermission } from "@/lib/permissions";
 import { formatDateTime, fullName } from "@/lib/format";
 import { whatsappViaBot } from "@/lib/notify";
 import { createClient } from "@/lib/supabase/server";
-import { AttendButton, AutoRefresh, SettingsForm } from "./controls";
+import { WHATSAPP_HEALTH, whatsappHealth } from "@/lib/whatsapp-status";
+import { AttendButton, AutoRefresh, ConnectButton, SettingsForm } from "./controls";
 
 export const metadata: Metadata = { title: "WhatsApp" };
 
-const STATE = {
-  conectado: { label: "Conectado", tone: "green" },
-  esperando_qr: { label: "Esperando que escanees el código", tone: "amber" },
-  desconectado: { label: "Desconectado", tone: "red" },
-} as const;
-
-/** El bot avisa cada 20 s; si lleva más de 2 minutos callado, probablemente está apagado. */
-function isStale(lastSeen: string | null | undefined) {
-  return !lastSeen || Date.now() - new Date(lastSeen).getTime() > 2 * 60_000;
-}
 
 type PatientName = { first_name: string; last_name: string; second_last_name: string | null } | null;
 
@@ -43,8 +34,8 @@ export default async function WhatsappPage() {
       .limit(300),
   ]);
 
-  const stale = status?.state === "conectado" && isStale(status.last_seen);
-  const qrSvg = status?.state === "esperando_qr" && status.qr ? await QRCode.toString(status.qr, { type: "svg", margin: 1, width: 240 }) : null;
+  const health = whatsappHealth(status);
+  const qrSvg = health === "esperando_qr" && status?.qr ? await QRCode.toString(status.qr, { type: "svg", margin: 1, width: 240 }) : null;
 
   // Conversaciones: último mensaje por número.
   const chats = new Map<string, { phone: string; patient: PatientName; messages: NonNullable<typeof recent> }>();
@@ -61,7 +52,7 @@ export default async function WhatsappPage() {
 
   return (
     <>
-      <AutoRefresh seconds={status?.state === "conectado" ? 30 : 5} />
+      <AutoRefresh seconds={health === "conectado" ? 30 : 5} />
       <PageHeader
         title="WhatsApp"
         description="Bot que agenda citas, contesta y manda recordatorios por WhatsApp."
@@ -76,30 +67,41 @@ export default async function WhatsappPage() {
         <Card className="self-start">
           <div className="mb-3 flex items-center justify-between gap-2">
             <h2 className="font-semibold text-brand-900">Conexión</h2>
-            <Badge tone={stale ? "red" : STATE[status?.state ?? "desconectado"].tone}>
-              {stale ? "Sin respuesta del bot" : STATE[status?.state ?? "desconectado"].label}
-            </Badge>
+            <Badge tone={WHATSAPP_HEALTH[health].tone}>{WHATSAPP_HEALTH[health].label}</Badge>
           </div>
-          {qrSvg ? (
+          {health === "conectado" ? (
+            <p className="text-sm text-brand-800">
+              Número: <span className="font-mono">{status?.phone}</span>
+              <br />
+              <span className="text-xs text-brand-700/70">Última señal {formatDateTime(status!.last_seen ?? status!.bot_seen_at!)}</span>
+            </p>
+          ) : qrSvg ? (
             <div className="space-y-3 text-sm text-brand-800">
               <div className="mx-auto w-60 rounded-xl border border-brand-100 bg-white p-2" dangerouslySetInnerHTML={{ __html: qrSvg }} />
               <ol className="list-decimal space-y-1 pl-5">
-                <li>Abre WhatsApp en el teléfono del bot.</li>
+                <li>Abre WhatsApp en el teléfono de la clínica.</li>
                 <li>Ve a Dispositivos vinculados → Vincular un dispositivo.</li>
                 <li>Escanea este código.</li>
               </ol>
+              <p className="text-xs text-brand-700/70">Si el código vence, presiona «Conectar» otra vez.</p>
+              <ConnectButton label="Generar otro código" />
             </div>
-          ) : status?.state === "conectado" && !stale ? (
-            <p className="text-sm text-brand-800">
-              Número: <span className="font-mono">{status.phone}</span>
-              <br />
-              <span className="text-xs text-brand-700/70">Última señal {formatDateTime(status.last_seen!)}</span>
-            </p>
+          ) : health === "conectando" ? (
+            <p className="text-sm text-brand-800">Conectando con WhatsApp… en unos segundos aparece la conexión o el código para escanear.</p>
+          ) : health === "desconectado" ? (
+            <div className="space-y-3 text-sm text-brand-800">
+              <p>WhatsApp no está conectado: el bot no contesta ni manda recordatorios. Conéctalo al abrir la clínica.</p>
+              <ConnectButton />
+            </div>
           ) : (
             <div className="space-y-2 text-sm text-brand-800">
-              <p>El bot no está corriendo. En la computadora de la clínica abre una terminal y corre:</p>
-              <pre className="rounded-lg bg-brand-50 p-2 font-mono text-xs">cd ClinicaDental/bot{"\n"}npm start</pre>
-              <p className="text-xs text-brand-700/70">Cuando arranque, aquí aparecerá el código para vincular WhatsApp.</p>
+              <p>
+                La computadora donde corre el bot está apagada o sin internet. Préndela: el bot arranca solo con Windows y en un minuto aparece aquí el
+                botón para conectar.
+              </p>
+              <p className="text-xs text-brand-700/70">
+                Si sigue sin aparecer, en esa computadora abre <span className="font-mono">ClinicaDental/bot/arrancar-bot.cmd</span>.
+              </p>
             </div>
           )}
           {!whatsappViaBot() && (

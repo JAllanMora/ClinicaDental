@@ -51,3 +51,13 @@ export async function saveWhatsappSettings(_prev: Result, formData: FormData): P
   revalidatePath("/whatsapp");
   return { ok: "Configuración guardada." };
 }
+
+/** Botón «Conectar»: el bot (en la computadora de la clínica) lo ve en segundos y conecta o muestra el QR. */
+export async function requestConnect(): Promise<Result> {
+  await requireProfile();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("request_whatsapp_connect");
+  if (error) return { error: "No se pudo pedir la conexión." };
+  revalidatePath("/whatsapp");
+  return { ok: "Conectando…" };
+}

@@ -1,5 +1,6 @@
 import { addMinutes, clinicParts, dayLabel, nextDayStart, timeLabel, whenLabel } from "./dates.mjs";
 import { parseWhen, wantsAppointment } from "./when.mjs";
+import { BOOKED_SOON_DAYS, REPLY_WINDOW_DAYS } from "./recalls.mjs";
 
 const DAY_START = (day) => new Date(`${day}T00:00:00-06:00`).toISOString();
 const WISH_HINT = "También puedes escribirme el día y la hora que prefieras, por ejemplo: «el próximo martes a las 5 pm» o «20 de diciembre».";
@@ -60,6 +61,8 @@ function choice(text) {
 const HUMAN = /\b(recepcion|recepcionista|humano|persona|asesor|alguien)\b/;
 const YES = /^(1|si|sí|confirmo|confirmar|ok|va|claro)\b/;
 const CHANGE = /^(2|cambiar|cambio|reagendar|no puedo)\b/;
+const NOT_NOW = /^(2|no|ahora no|despues|después|luego|mas adelante|más adelante|no gracias)\b/;
+const BOOK = /\b(agendar|agenda|agendame|agéndame|cita)\b/;
 
 /** "Ana Pérez" · "Ana Pérez López" (un nombre, dos apellidos) · "Ana María Pérez López". */
 function splitName(full) {
@@ -218,6 +221,8 @@ export function createFlow(db, { now = () => new Date() } = {}) {
     const settings = await db.settings();
     const dentists = await db.dentistsFor(ctx.type.id);
     const fixed =
+      // Seguimiento: con el doctor que pidió que regresara.
+      (ctx.recallDentist && dentists.find((d) => d.id === ctx.recallDentist.id)) ||
       (settings.keep_own_dentist && ctx.ownDentist && dentists.find((d) => d.id === ctx.ownDentist.id)) ||
       (!ctx.ownDentist && settings.first_visit_dentist_id && dentists.find((d) => d.id === settings.first_visit_dentist_id)) ||
       null;
@@ -322,6 +327,27 @@ export function createFlow(db, { now = () => new Date() } = {}) {
     return startBooking(phone, patient, { type: appt.type ?? null, replaces: appt });
   }
 
+  /** Respuesta al recordatorio de seguimiento («1. Sí, agendar / 2. Ahora no») fuera de una conversación. */
+  async function recallReply(phone, patient, text) {
+    if (!patient || !db.openRecall) return null;
+    const t = clean(text);
+    const wish = parseWhen(text, now().toISOString());
+    const yes = YES.test(t) || BOOK.test(t);
+    const no = !yes && NOT_NOW.test(t);
+    if (!yes && !no && !wish) return null;
+    const recall = await db.openRecall(patient.id, addMinutes(now().toISOString(), -REPLY_WINDOW_DAYS * 24 * 60));
+    if (!recall) return null;
+    if (no && !wish) {
+      await db.updateRecall(recall.id, { status: "declinado", responded_at: now().toISOString() });
+      set(phone, "idle", {});
+      return [`Entendido, ${patient.first_name}. Cuando quieras agendar, escríbeme «menú». ¡Cuídate!`];
+    }
+    await db.updateRecall(recall.id, { responded_at: now().toISOString() });
+    const settings = await db.settings();
+    const type = settings.types.find((x) => x.id === recall.appointment_type_id) ?? null;
+    return startBooking(phone, patient, { type, recallId: recall.id, recallDentist: recall.dentist ?? null, ...(wish ? { wish } : {}) });
+  }
+
   async function handle(rawPhone, text) {
     const phone = normalizePhone(rawPhone);
     const settings = await db.settings();
@@ -351,7 +377,7 @@ export function createFlow(db, { now = () => new Date() } = {}) {
     // "Quiero hablar con recepción" en cualquier momento.
     if (HUMAN.test(t) && session?.step !== "ask_name") return handoff(phone, patient, text);
     if (!session || session.step === "idle" || session.step === "human") {
-      const reply = RESET_WORDS.has(t) ? null : await reminderReply(phone, patient, text);
+      const reply = RESET_WORDS.has(t) ? null : ((await reminderReply(phone, patient, text)) ?? (await recallReply(phone, patient, text)));
       if (reply) return reply;
       // «Quiero una cita el viernes a las 10»: directo a agendar con esa fecha.
       const wish = wantsAppointment(text) ? parseWhen(text, now().toISOString()) : null;
@@ -415,6 +441,11 @@ export function createFlow(db, { now = () => new Date() } = {}) {
           return [`Ese horario se acaba de ocupar. Te muestro otros:`, ...(await offerSlots(phone, data))];
         }
         if (data.replaces) await db.cancel(data.replaces.id, "Cambio de horario solicitado por el paciente vía WhatsApp");
+        // Si tenía un seguimiento (p. ej. «regresar a limpieza»), queda como agendado.
+        if (db.recallBooked) {
+          const soon = clinicParts(addMinutes(now().toISOString(), BOOKED_SOON_DAYS * 24 * 60)).day;
+          await db.recallBooked(data.patientId, created.id, soon).catch(() => {});
+        }
         set(phone, "idle", {});
         return [
           `¡Listo${data.patientName ? `, ${data.patientName}` : ""}! Tu cita quedó para el ${whenLabel(data.slot.starts_at)} con ${data.slot.dentist_name}.` +

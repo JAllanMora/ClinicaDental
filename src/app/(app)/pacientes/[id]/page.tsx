@@ -7,6 +7,8 @@ import { LAB_OPEN, LAB_STATUS } from "@/lib/lab";
 import { createClient } from "@/lib/supabase/server";
 import { getPatient } from "./data";
 import { ActiveToggle } from "./active-toggle";
+import { patientRecalls } from "../../agenda/seguimientos/data";
+import { RecallList } from "../../agenda/seguimientos/recall-list";
 
 export async function generateMetadata({ params }: PageProps<"/pacientes/[id]">): Promise<Metadata> {
   const patient = await getPatient((await params).id);
@@ -43,6 +45,7 @@ export default async function PatientSummaryPage({ params }: PageProps<"/pacient
     .eq("patient_id", id)
     .in("status", LAB_OPEN)
     .order("created_at", { ascending: false });
+  const recalls = (await patientRecalls(supabase, id)).filter((r) => r.status !== "agendado" || r.due_on >= new Date().toISOString().slice(0, 10));
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -130,6 +133,13 @@ export default async function PatientSummaryPage({ params }: PageProps<"/pacient
           </ul>
         )}
       </Card>
+      {recalls.length > 0 && (
+        <Card>
+          <h2 className="mb-1 font-semibold text-brand-900">Recordatorios de regreso</h2>
+          <p className="text-xs text-brand-700/70">El bot le escribe por WhatsApp cuando se cumple la fecha y le ofrece agendar.</p>
+          <RecallList rows={recalls} />
+        </Card>
+      )}
       {profile.role !== "dentist" && (
         <Card>
           <h2 className="mb-2 font-semibold text-brand-900">Estado del expediente</h2>

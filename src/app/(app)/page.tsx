@@ -5,7 +5,9 @@ import { STATUS, addDays, dayRange, minutesToLabel, clinicParts, todayStr } from
 import { LAB_PENDING } from "@/lib/lab";
 import { stockRows } from "./inventario/data";
 import { fullName, recordNumber } from "@/lib/format";
+import { hasPermission } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
+import { WHATSAPP_HEALTH, whatsappHealth } from "@/lib/whatsapp-status";
 
 function greeting() {
   const hour = Number(
@@ -67,10 +69,31 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
     { n: stock.filter((r) => r.low || r.expiring).length, label: "artículos con alerta de inventario", href: "/inventario?vista=alertas" },
   ].filter((t) => t.n > 0);
 
+  // Lo primero al abrir la clínica: que WhatsApp esté conectado.
+  const waHealth = (await hasPermission("whatsapp"))
+    ? whatsappHealth((await supabase.from("whatsapp_status").select("state, bot_seen_at, connect_requested_at").maybeSingle()).data)
+    : null;
+
   const firstName = profile.full_name.split(" ")[0];
 
   return (
     <>
+      {waHealth && waHealth !== "conectado" && (
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-red-800" data-testid="whatsapp-alert">
+          <span className="text-2xl" aria-hidden>
+            📵
+          </span>
+          <div className="min-w-0 flex-1 text-sm">
+            <p className="font-semibold">WhatsApp no está conectado ({WHATSAPP_HEALTH[waHealth].label.toLowerCase()})</p>
+            <p>
+              {waHealth === "apagado"
+                ? "Prende la computadora del bot; después conecta WhatsApp."
+                : "El bot no contesta a los pacientes ni manda recordatorios hasta que lo conectes."}
+            </p>
+          </div>
+          <ButtonLink href="/whatsapp">Conectar WhatsApp</ButtonLink>
+        </div>
+      )}
       {error === "permiso" && (
         <div className="mb-6">
           <Alert>No tienes permiso para entrar a esa sección.</Alert>

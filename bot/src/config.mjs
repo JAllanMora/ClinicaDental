@@ -29,6 +29,8 @@ export function loadConfig() {
     authDir: resolve(root, env.BOT_AUTH_DIR || "auth"),
     // Horas que el bot se calla en un chat cuando el paciente pide hablar con recepción.
     humanPauseHours: Number(env.BOT_PAUSA_HUMANO_HORAS ?? 4),
+    // Al reconectarse, contesta lo que llegó con el bot apagado si tiene a lo más estas horas.
+    pendingHours: Number(env.BOT_PENDIENTES_HORAS ?? 12),
     // En modo prueba sólo contesta y sólo manda recordatorios a estos números (10 dígitos, separados por coma).
     testMode: (env.BOT_MODO ?? "prueba") !== "produccion",
     testNumbers: (env.BOT_NUMEROS_PRUEBA ?? "")

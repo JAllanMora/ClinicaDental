@@ -4,3 +4,5 @@ auth/
 qr.html
 .env
 *.log
+handled.json
+bot.pid

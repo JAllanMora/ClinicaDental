@@ -189,6 +189,9 @@ export function AgendaBoard(props: {
           <ButtonLink href="/agenda/recordatorios" variant="secondary">
             Recordatorios
           </ButtonLink>
+          <ButtonLink href="/agenda/seguimientos" variant="secondary">
+            Seguimientos
+          </ButtonLink>
           <ButtonLink href="/agenda/espera" variant="secondary">
             Lista de espera
             {props.waitlist.length > 0 && <Badge tone="magenta">{props.waitlist.length}</Badge>}

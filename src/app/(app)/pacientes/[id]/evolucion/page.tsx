@@ -5,6 +5,8 @@ import { requireProfile } from "@/lib/auth";
 import { canViewClinical } from "@/lib/permissions";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { patientRecalls } from "../../../agenda/seguimientos/data";
+import { RecallList } from "../../../agenda/seguimientos/recall-list";
 import { addNote } from "./actions";
 import { AmendButton, NoteForm } from "./note-form";
 
@@ -23,13 +25,24 @@ export default async function NotesPage({ params }: PageProps<"/pacientes/[id]/e
     .order("note_date", { ascending: false })
     .order("created_at", { ascending: false });
 
+  const [recalls, { data: types }] = await Promise.all([
+    patientRecalls(supabase, id),
+    supabase.from("appointment_types").select("id, name").eq("active", true).order("name"),
+  ]);
+  const openRecalls = recalls.filter((r) => r.status === "pendiente" || r.status === "enviado");
   const action = addNote.bind(null, id);
   const originals = (notes ?? []).filter((n) => !n.amends_note_id);
   const amendments = (notes ?? []).filter((n) => n.amends_note_id);
 
   return (
     <div className="space-y-6">
-      <NoteForm action={action} />
+      {openRecalls.length > 0 && (
+        <Card>
+          <h2 className="font-semibold text-brand-900">Recordatorios de regreso</h2>
+          <RecallList rows={openRecalls} />
+        </Card>
+      )}
+      <NoteForm action={action} types={types ?? []} />
 
       {!originals.length ? (
         <EmptyState title="Sin notas de evolución">Registra cada procedimiento con su pieza, materiales y responsable.</EmptyState>
